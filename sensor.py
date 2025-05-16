@@ -1,51 +1,88 @@
 #!/usr/bin/env python3
 import bme680
 import time
+import csv
+import os
+from datetime import datetime
 
-# Intentar crear una instancia del sensor.
-# Si tu sensor tiene la dirección I2C 0x76, usa: sensor = bme680.BME680(0x76)
+# Try to create an instance of the sensor.
+# If your sensor has I2C address 0x76, use: sensor = bme680.BME680(0x76)
 try:
     sensor = bme680.BME680(0x77)
 except RuntimeError as e:
-    print(f"Error al inicializar el sensor: {e}")
-    print("Asegúrate de que las conexiones SDA y SCL son correctas")
-    print("y que I2C está habilitado en la Raspberry Pi (sudo raspi-config -> Interfacing Options -> I2C).")
+    print(f"Error initializing sensor: {e}")
+    print("Ensure SDA and SCL connections are correct")
+    print("and that I2C is enabled on the Raspberry Pi (sudo raspi-config -> Interfacing Options -> I2C).")
     exit()
 
-print("Sensor BME680 detectado. Leyendo datos...")
+print("BME680 sensor detected. Reading data...")
 
-# Configurar oversampling y filtros si es necesario (opcional, valores por defecto suelen funcionar)
+# Configure oversampling and filters if necessary (optional, default values usually work)
 # sensor.set_temperature_oversample(bme680.OS_2X)
 # sensor.set_humidity_oversample(bme680.OS_2X)
 # sensor.set_pressure_oversample(bme680.OS_2X)
 # sensor.set_filter(bme680.FILTER_SIZE_2)
 
-# Configurar el calentador de gas (necesario para la lectura de gas)
-# Ajusta la temperatura y el tiempo según las recomendaciones para el sensor si las tienes
+# Configure the gas heater (necessary for gas reading)
+# Adjust temperature and time according to sensor recommendations if you have them
 sensor.set_gas_heater_temperature(320)
 sensor.set_gas_heater_duration(150)
 #sensor.select_gas_heater(bme680.GASSENSOR_ENABLE)
 
+CSV_FILENAME = "measures.csv"
 
-print("Leyendo datos cada segundo. Presiona Ctrl+C para salir.")
+# Check if the CSV file needs a header
+write_header = not os.path.exists(CSV_FILENAME) or os.path.getsize(CSV_FILENAME) == 0
+
+# Open CSV file in append mode
+# newline='' is important to prevent extra blank rows on Windows
+csv_file = open(CSV_FILENAME, 'a', newline='')
+csv_writer = csv.writer(csv_file)
+
+if write_header:
+    header = ['Timestamp', 'Temperature (C)', 'Humidity (%RH)', 'Pressure (hPa)', 'Gas Resistance (Ohms)']
+    csv_writer.writerow(header)
+    csv_file.flush() # Ensure the header is written immediately
+
+print("Reading data every second. Press Ctrl+C to exit.")
+print(f"Data will be saved to '{CSV_FILENAME}'")
 
 try:
     while True:
         if sensor.get_sensor_data():
+            # Preparar datos para la salida en consola
             output = '{0:.2f} C, {1:.2f} %RH, {2:.2f} hPa'.format(
                 sensor.data.temperature,
                 sensor.data.humidity,
                 sensor.data.pressure)
 
-            if sensor.data.heat_stable:
-                # La resistencia del gas tarda un tiempo en estabilizarse después de encender el calentador
-                output += ', {0:.2f} Ohms de gas'.format(sensor.data.gas_resistance)
-            else:
-                output += ', Calentando sensor de gas...'
+            gas_resistance_str_console = "Heating gas sensor..."
+            gas_resistance_val_csv = "N/A"
 
+            if sensor.data.heat_stable:
+                # Gas resistance takes time to stabilize after turning on the heater
+                gas_resistance_str_console = '{0:.2f} Gas Ohms'.format(sensor.data.gas_resistance)
+                gas_resistance_val_csv = '{0:.2f}'.format(sensor.data.gas_resistance)
+            
+            output += f', {gas_resistance_str_console}'
             print(output)
 
-        time.sleep(1) # Espera 1 segundo antes de la próxima lectura
+            # Prepare data for the CSV file
+            timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            csv_row = [
+                timestamp_str,
+                '{0:.2f}'.format(sensor.data.temperature),
+                '{0:.2f}'.format(sensor.data.humidity),
+                '{0:.2f}'.format(sensor.data.pressure),
+                gas_resistance_val_csv
+            ]
+            csv_writer.writerow(csv_row)
+            csv_file.flush() # Save data to disk after each write
 
+        time.sleep(1) # Wait 1 second before the next reading
 except KeyboardInterrupt:
-    print("\nLectura de sensor detenida.")
+    print("\nSensor reading stopped.")
+finally:
+    if 'csv_file' in locals() and csv_file and not csv_file.closed:
+        csv_file.close()
+        print(f"CSV file '{CSV_FILENAME}' closed.")
