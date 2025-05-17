@@ -39,6 +39,8 @@ sensor.set_gas_heater_duration(150)
 oled_device = None
 oled_font = None
 oled_line_height = 10  # Default for PIL's load_default()
+OLED_YELLOW_SECTION_HEIGHT = 16 # Typical height for the yellow section on 128x64 two-color OLEDs
+OLED_TITLE_TEXT = "BME680 Readings"
 
 try:
     # Common I2C address for 0.96" OLED is 0x3C
@@ -116,9 +118,19 @@ try:
                 with canvas(oled_device) as draw:
                     # Clear screen by drawing a black filled rectangle (handled by canvas context manager)
                     # Or draw.rectangle(oled_device.bounding_box, outline="black", fill="black")
-                    
-                    y_pos = 0
-                    
+
+                    # Draw title in the yellow section
+                    # For simplicity, left-aligning. Centering would require font metrics.
+                    title_x = 0
+                    # Try to vertically center the title a bit within the yellow section
+                    # This is an approximation, true centering needs font bounding box.
+                    title_y = (OLED_YELLOW_SECTION_HEIGHT - oled_line_height) // 2
+                    if title_y < 0: title_y = 0 # Ensure it's not negative if font is too large
+                    draw.text((title_x, title_y), OLED_TITLE_TEXT, font=oled_font, fill="white")
+
+                    # Start drawing sensor data below the yellow section
+                    y_pos = OLED_YELLOW_SECTION_HEIGHT
+
                     text_line = f"T: {sensor.data.temperature:.1f} C"
                     draw.text((0, y_pos), text_line, font=oled_font, fill="white")
                     y_pos += oled_line_height
@@ -126,10 +138,10 @@ try:
                     text_line = f"H: {sensor.data.humidity:.1f} %RH"
                     draw.text((0, y_pos), text_line, font=oled_font, fill="white")
                     y_pos += oled_line_height
-
                     text_line = f"P: {sensor.data.pressure:.1f} hPa"
                     draw.text((0, y_pos), text_line, font=oled_font, fill="white")
                     y_pos += oled_line_height
+
                     draw.text((0, y_pos), gas_resistance_str_oled, font=oled_font, fill="white")
         time.sleep(1) # Wait 1 second before the next reading
 except KeyboardInterrupt:
