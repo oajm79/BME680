@@ -96,7 +96,7 @@ try:
                 gas_resistance_val_csv = '{0:.2f}'.format(sensor.data.gas_resistance)
             
             output += f', {gas_resistance_str_console}'
-            print(output)
+            #print(output)
 
             # Prepare data for the CSV file
             # This timestamp is also used for the OLED if needed, or generate a new one
