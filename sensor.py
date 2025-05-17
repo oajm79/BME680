@@ -42,6 +42,17 @@ oled_line_height = 10  # Default for PIL's load_default()
 OLED_YELLOW_SECTION_HEIGHT = 16 # Typical height for the yellow section on 128x64 two-color OLEDs
 OLED_TITLE_TEXT = "BME680 Readings"
 
+# Air Quality Score Configuration
+BURN_IN_DURATION_S = 300      # 5 minutes for sensor burn-in
+BASELINE_SAMPLING_DURATION_S = 300 # 5 minutes to sample for baseline gas resistance
+GOOD_AIR_THRESHOLD_RATIO = 1.35   # Current gas > baseline * 1.35 -> Good
+POOR_AIR_THRESHOLD_RATIO = 0.70   # Current gas < baseline * 0.70 -> Poor
+                                # Otherwise -> Moderate
+
+start_time = time.time()
+gas_baseline = None
+baseline_gas_readings = []
+
 try:
     # Common I2C address for 0.96" OLED is 0x3C
     # Raspberry Pi I2C port is typically 1
@@ -71,7 +82,7 @@ csv_file = open(CSV_FILENAME, 'a', newline='')
 csv_writer = csv.writer(csv_file)
 
 if write_header:
-    header = ['Timestamp', 'Temperature (C)', 'Humidity (%RH)', 'Pressure (hPa)', 'Gas Resistance (Ohms)']
+    header = ['Timestamp', 'Temperature (C)', 'Humidity (%RH)', 'Pressure (hPa)', 'Gas Resistance (Ohms)', 'Air Quality']
     csv_writer.writerow(header)
     csv_file.flush() # Ensure the header is written immediately
 
@@ -81,6 +92,8 @@ print(f"Data will be saved to '{CSV_FILENAME}'")
 try:
     while True:
         if sensor.get_sensor_data():
+            elapsed_time = time.time() - start_time
+
             # Preparar datos para la salida en consola
             output = '{0:.2f} C, {1:.2f} %RH, {2:.2f} hPa'.format(
                 sensor.data.temperature,
@@ -88,18 +101,53 @@ try:
                 sensor.data.pressure)
 
             gas_resistance_str_console = "Heating gas sensor..."
-            gas_resistance_str_oled = "Gas: Heating..." # For OLED display
             gas_resistance_val_csv = "N/A"
+            air_quality_score_str = "Calibrating..." # Default AQ score
 
             if sensor.data.heat_stable:
                 # Gas resistance takes time to stabilize after turning on the heater
                 gas_resistance_str_console = '{0:.2f} Gas Ohms'.format(sensor.data.gas_resistance)
-                gas_resistance_str_oled = 'Gas: {0:.0f} Ohms'.format(sensor.data.gas_resistance) # Integer for OLED
                 gas_resistance_val_csv = '{0:.2f}'.format(sensor.data.gas_resistance)
-            
-            output += f', {gas_resistance_str_console}'
-            #print(output)
 
+                current_gas_resistance = sensor.data.gas_resistance
+
+                if elapsed_time < BURN_IN_DURATION_S:
+                    air_quality_score_str = "Burn-in"
+                elif elapsed_time < BURN_IN_DURATION_S + BASELINE_SAMPLING_DURATION_S:
+                    baseline_gas_readings.append(current_gas_resistance)
+                    air_quality_score_str = "Baseline..."
+                    # Update OLED to show baseline progress if desired
+                    # e.g., "Baseline {len(baseline_gas_readings)}/{int(BASELINE_SAMPLING_DURATION_S / (interval_of_this_loop))}"
+                else:
+                    if gas_baseline is None: # Calculate baseline if not already done
+                        if baseline_gas_readings:
+                            gas_baseline = sum(baseline_gas_readings) / len(baseline_gas_readings)
+                            print(f"Gas baseline established: {gas_baseline:.2f} Ohms")
+                            baseline_gas_readings = [] # Clear after use
+                        else:
+                            # This case means no stable readings were collected during baseline period
+                            air_quality_score_str = "Baseline Fail"
+                            # Optionally, could try to re-baseline or use a default
+
+                    if gas_baseline is not None:
+                        ratio = current_gas_resistance / gas_baseline
+                        if ratio > GOOD_AIR_THRESHOLD_RATIO:
+                            air_quality_score_str = "Good"
+                        elif ratio < POOR_AIR_THRESHOLD_RATIO:
+                            air_quality_score_str = "Poor"
+                        else:
+                            air_quality_score_str = "Moderate"
+                    elif air_quality_score_str != "Baseline Fail": # If not already failed
+                        air_quality_score_str = "Need Baseline"
+
+            else: # Not heat_stable
+                if elapsed_time < BURN_IN_DURATION_S:
+                     air_quality_score_str = "Burn-in (Gas)"
+                else:
+                     air_quality_score_str = "Gas Heating"
+
+            output += f', {gas_resistance_str_console}, AQ: {air_quality_score_str}'
+            print(output) # Un-commented to see console output
             # Prepare data for the CSV file
             # This timestamp is also used for the OLED if needed, or generate a new one
             timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -108,7 +156,8 @@ try:
                 '{0:.2f}'.format(sensor.data.temperature),
                 '{0:.2f}'.format(sensor.data.humidity),
                 '{0:.2f}'.format(sensor.data.pressure),
-                gas_resistance_val_csv
+                gas_resistance_val_csv,
+                air_quality_score_str
             ]
             csv_writer.writerow(csv_row)
             csv_file.flush() # Save data to disk after each write
@@ -141,8 +190,10 @@ try:
                     text_line = f"P: {sensor.data.pressure:.1f} hPa"
                     draw.text((0, y_pos), text_line, font=oled_font, fill="white")
                     y_pos += oled_line_height
-
-                    draw.text((0, y_pos), gas_resistance_str_oled, font=oled_font, fill="white")
+                    
+                    # Display Air Quality Score on OLED
+                    oled_aq_text = f"AQ: {air_quality_score_str}"
+                    draw.text((0, y_pos), oled_aq_text, font=oled_font, fill="white")
         time.sleep(1) # Wait 1 second before the next reading
 except KeyboardInterrupt:
     print("\nSensor reading stopped.")
