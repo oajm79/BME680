@@ -147,7 +147,7 @@ try:
                      air_quality_score_str = "Gas Heating"
 
             output += f', {gas_resistance_str_console}, AQ: {air_quality_score_str}'
-            print(output) # Un-commented to see console output
+            #print(output) # Un-commented to see console output
             # Prepare data for the CSV file
             # This timestamp is also used for the OLED if needed, or generate a new one
             timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
