@@ -55,6 +55,10 @@ time_baseline_established = 0.0              # Timestamp when gas_baseline was l
 gas_baseline = None
 baseline_gas_readings = []
 
+# OLED Alternating display state
+oled_alternating_state = 0  # 0: AQ, 1: Baseline, 2: Last Calib Time
+last_oled_alternating_update_time = 0.0
+
 try:
     # Common I2C address for 0.96" OLED is 0x3C
     # Raspberry Pi I2C port is typically 1
@@ -181,6 +185,7 @@ try:
 
             # Update OLED display if available
             if oled_device and oled_font:
+                current_time_oled_update = time.time() # For alternating display logic
                 with canvas(oled_device) as draw:
                     # Clear screen by drawing a black filled rectangle (handled by canvas context manager)
                     # Or draw.rectangle(oled_device.bounding_box, outline="black", fill="black")
@@ -208,9 +213,28 @@ try:
                     draw.text((0, y_pos), text_line, font=oled_font, fill="white")
                     y_pos += oled_line_height
                     
-                    # Display Air Quality Score on OLED
-                    oled_aq_text = f"AQ: {air_quality_score_str}"
-                    draw.text((0, y_pos), oled_aq_text, font=oled_font, fill="white")
+                    # Alternating last line on OLED
+                    if current_time_oled_update - last_oled_alternating_update_time >= 3:
+                        oled_alternating_state = (oled_alternating_state + 1) % 3
+                        last_oled_alternating_update_time = current_time_oled_update
+
+                    oled_last_line_text = ""
+                    if oled_alternating_state == 0:
+                        oled_last_line_text = f"AQ: {air_quality_score_str}"
+                    elif oled_alternating_state == 1:
+                        if gas_baseline is not None:
+                            oled_last_line_text = f"Base: {gas_baseline:.0f} Ohms"
+                        else:
+                            oled_last_line_text = "Base: N/A"
+                    elif oled_alternating_state == 2:
+                        if time_baseline_established > 0:
+                            cal_time_str = datetime.fromtimestamp(time_baseline_established).strftime('%H:%M')
+                            oled_last_line_text = f"Cal: {cal_time_str}"
+                        else:
+                            oled_last_line_text = "Cal: N/A"
+                    
+                    draw.text((0, y_pos), oled_last_line_text, font=oled_font, fill="white")
+
         time.sleep(1) # Wait 1 second before the next reading
 except KeyboardInterrupt:
     print("\nSensor reading stopped.")
