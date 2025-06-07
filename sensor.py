@@ -48,7 +48,7 @@ BASELINE_SAMPLING_DURATION_S = 300 # 5 minutes to sample for baseline gas resist
 GOOD_AIR_THRESHOLD_RATIO = 1.35   # Current gas > baseline * 1.35 -> Good
 POOR_AIR_THRESHOLD_RATIO = 0.70   # Current gas < baseline * 0.70 -> Poor
                                 # Otherwise -> Moderate
-RECALIBRATION_INTERVAL_S = 8 * 3600 # Recalibrate every 8 hours (0 to disable)
+RECALIBRATION_INTERVAL_S = 4 * 3600 # Recalibrate every 4 hours (0 to disable)
 
 current_calibration_start_time = time.time() # Start time of the current burn-in/baseline phase
 time_baseline_established = 0.0              # Timestamp when gas_baseline was last successfully computed
