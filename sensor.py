@@ -48,8 +48,10 @@ BASELINE_SAMPLING_DURATION_S = 300 # 5 minutes to sample for baseline gas resist
 GOOD_AIR_THRESHOLD_RATIO = 1.35   # Current gas > baseline * 1.35 -> Good
 POOR_AIR_THRESHOLD_RATIO = 0.70   # Current gas < baseline * 0.70 -> Poor
                                 # Otherwise -> Moderate
+RECALIBRATION_INTERVAL_S = 8 * 3600 # Recalibrate every 8 hours (0 to disable)
 
-start_time = time.time()
+current_calibration_start_time = time.time() # Start time of the current burn-in/baseline phase
+time_baseline_established = 0.0              # Timestamp when gas_baseline was last successfully computed
 gas_baseline = None
 baseline_gas_readings = []
 
@@ -91,8 +93,21 @@ print(f"Data will be saved to '{CSV_FILENAME}'")
 
 try:
     while True:
+        current_time = time.time()
+
+        # --- Recalibration Trigger ---
+        if gas_baseline is not None and \
+           RECALIBRATION_INTERVAL_S > 0 and \
+           (current_time - time_baseline_established > RECALIBRATION_INTERVAL_S):
+            print(f"\n--- Recalibration triggered (interval: {RECALIBRATION_INTERVAL_S // 3600}h) ---")
+            current_calibration_start_time = current_time # Reset for new burn-in
+            gas_baseline = None
+            baseline_gas_readings = []
+            time_baseline_established = 0.0 # Mark that baseline needs re-establishment
+            print("Starting new burn-in and baseline sampling phase...")
+
         if sensor.get_sensor_data():
-            elapsed_time = time.time() - start_time
+            elapsed_time_current_phase = current_time - current_calibration_start_time
 
             # Preparar datos para la salida en consola
             output = '{0:.2f} C, {1:.2f} %RH, {2:.2f} hPa'.format(
@@ -111,18 +126,20 @@ try:
 
                 current_gas_resistance = sensor.data.gas_resistance
 
-                if elapsed_time < BURN_IN_DURATION_S:
+                if elapsed_time_current_phase < BURN_IN_DURATION_S:
                     air_quality_score_str = "Burn-in"
-                elif elapsed_time < BURN_IN_DURATION_S + BASELINE_SAMPLING_DURATION_S:
+                elif elapsed_time_current_phase < BURN_IN_DURATION_S + BASELINE_SAMPLING_DURATION_S:
                     baseline_gas_readings.append(current_gas_resistance)
                     air_quality_score_str = "Baseline..."
                     # Update OLED to show baseline progress if desired
                     # e.g., "Baseline {len(baseline_gas_readings)}/{int(BASELINE_SAMPLING_DURATION_S / (interval_of_this_loop))}"
                 else:
-                    if gas_baseline is None: # Calculate baseline if not already done
+                    if gas_baseline is None: # Calculate baseline if not already done in this calibration phase
                         if baseline_gas_readings:
                             gas_baseline = sum(baseline_gas_readings) / len(baseline_gas_readings)
-                            print(f"Gas baseline established: {gas_baseline:.2f} Ohms")
+                            time_baseline_established = current_time
+                            timestamp_baseline_str = datetime.fromtimestamp(time_baseline_established).strftime('%Y-%m-%d %H:%M:%S')
+                            print(f"Gas baseline established: {gas_baseline:.2f} Ohms at {timestamp_baseline_str}")
                             baseline_gas_readings = [] # Clear after use
                         else:
                             # This case means no stable readings were collected during baseline period
@@ -141,7 +158,7 @@ try:
                         air_quality_score_str = "Need Baseline"
 
             else: # Not heat_stable
-                if elapsed_time < BURN_IN_DURATION_S:
+                if elapsed_time_current_phase < BURN_IN_DURATION_S:
                      air_quality_score_str = "Burn-in (Gas)"
                 else:
                      air_quality_score_str = "Gas Heating"
