@@ -29,6 +29,14 @@ SENSOR_SCRIPT_PATH="$SCRIPT_DIR/$PYTHON_SCRIPT"
 
 echo "Starting sensor script..."
 
+# Change to the script's directory to ensure git commands run in the correct repository.
+cd "$SCRIPT_DIR" || exit
+
+# Pull the latest changes from the git repository.
+echo "Updating from Git repository..."
+git pull
+echo "Update complete."
+
 # 1. Validate that the virtual environment exists.
 if [ ! -d "$VENV_PATH" ]; then
     echo "Error: The virtual environment directory '$VENV_PATH' was not found."
