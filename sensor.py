@@ -55,18 +55,6 @@ time_baseline_established = 0.0              # Timestamp when gas_baseline was l
 gas_baseline = None
 baseline_gas_readings = []
 
-# OLED Ticker display state for the last line
-OLED_ANIMATION_DURATION = 1.5  # seconds for text to scroll in
-OLED_STATIC_DURATION = 5.0     # seconds for text to remain static
-
-oled_ticker_info_idx = 0       # Current info to display (0: AQ, 1: Baseline, 2: Calib Time)
-oled_ticker_phase = 'ANIMATING_IN'  # Current phase: 'ANIMATING_IN' or 'STATIC'
-oled_ticker_phase_start_time = 0.0 # Timestamp when the current phase started
-oled_ticker_current_text = ""      # The actual string being displayed/animated
-oled_ticker_needs_text_update = True # Flag to update text at the start of an animation
-oled_display_width_cache = 128     # Cache for OLED width, default 128 (will be updated if oled_device exists)
-
-
 try:
     # Common I2C address for 0.96" OLED is 0x3C
     # Raspberry Pi I2C port is typically 1
@@ -84,12 +72,6 @@ except Exception as e:
     print(f"Error initializing OLED display: {e}")
     print("OLED display will not be used. Check I2C connection and address (0x3C?).")
     oled_device = None # Ensure it's None if setup fails
-
-# Initialize ticker start time and display width cache after OLED setup
-if oled_device:
-    oled_display_width_cache = oled_device.width
-oled_ticker_phase_start_time = time.time() # Start the first animation immediately
-
 
 CSV_FILENAME = "measures.csv"
 
@@ -199,24 +181,6 @@ try:
 
             # Update OLED display if available
             if oled_device and oled_font:
-                current_time_for_ticker = time.time()
-
-                # Define text provider functions for the ticker
-                def get_aq_text():
-                    return f"AQ: {air_quality_score_str}"
-                def get_baseline_text():
-                    return f"Base: {gas_baseline:.0f} Ohms" if gas_baseline is not None else "Base: N/A"
-                def get_calib_text():
-                    if time_baseline_established > 0:
-                        return f"Cal: {datetime.fromtimestamp(time_baseline_established).strftime('%H:%M')}"
-                    return "Cal: N/A"
-                
-                def get_current_gas_resistance_text():
-                    if sensor.data.heat_stable and hasattr(sensor.data, 'gas_resistance'):
-                        return f"GasNow: {sensor.data.gas_resistance:.0f} Ohms"
-                    return "GasNow: Heating" # Or another appropriate message like "GasNow: N/A"
-
-                text_providers = [get_aq_text, get_baseline_text, get_calib_text, get_current_gas_resistance_text]
 
                 with canvas(oled_device) as draw:
                     # Clear screen by drawing a black filled rectangle (handled by canvas context manager)
@@ -245,35 +209,10 @@ try:
                     draw.text((0, y_pos), text_line, font=oled_font, fill="white")
                     y_pos += oled_line_height
                     
-                    # --- Ticker Logic for the last line ---
-                    elapsed_in_current_phase = current_time_for_ticker - oled_ticker_phase_start_time
-
-                    if oled_ticker_phase == 'STATIC':
-                        if elapsed_in_current_phase >= OLED_STATIC_DURATION:
-                            # Transition to ANIMATING_IN
-                            oled_ticker_phase = 'ANIMATING_IN'
-                            oled_ticker_phase_start_time = current_time_for_ticker
-                            oled_ticker_info_idx = (oled_ticker_info_idx + 1) % len(text_providers)
-                            oled_ticker_needs_text_update = True # Signal to update text
-
-                    elif oled_ticker_phase == 'ANIMATING_IN':
-                        if oled_ticker_needs_text_update:
-                            oled_ticker_current_text = text_providers[oled_ticker_info_idx]()
-                            oled_ticker_needs_text_update = False # Text updated for this animation cycle
-
-                        if elapsed_in_current_phase >= OLED_ANIMATION_DURATION:
-                            # Transition to STATIC
-                            oled_ticker_phase = 'STATIC'
-                            oled_ticker_phase_start_time = current_time_for_ticker
-                            # Text remains as is for the static phase
-
-                    # Calculate X position for ticker
-                    x_pos_ticker = 0 # Default for STATIC phase or if animation duration is 0
-                    if oled_ticker_phase == 'ANIMATING_IN' and OLED_ANIMATION_DURATION > 0:
-                        progress = min(1.0, elapsed_in_current_phase / OLED_ANIMATION_DURATION)
-                        x_pos_ticker = int(oled_display_width_cache * (1.0 - progress))
-                    
-                    draw.text((x_pos_ticker, y_pos), oled_ticker_current_text, font=oled_font, fill="white")
+                    # --- Last line: Display Air Quality Status ---
+                    # This replaces the old ticker logic with a simple, static display.
+                    aq_text = f"Air Quality: {air_quality_score_str}"
+                    draw.text((0, y_pos), aq_text, font=oled_font, fill="white")
 
         time.sleep(1) # Wait 1 second before the next reading
 except KeyboardInterrupt:
