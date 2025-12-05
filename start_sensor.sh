@@ -16,6 +16,9 @@ VENV_DIR="venv"
 # Name of the Python script to execute.
 PYTHON_SCRIPT="sensor.py"
 
+# File to store the process ID (PID)
+PID_FILE="sensor.pid"
+
 # --- Script Logic ---
 # Gets the absolute path of the directory where the script is located.
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -39,11 +42,18 @@ if [ ! -f "$SENSOR_SCRIPT_PATH" ]; then
     exit 1
 fi
 
-# 3. Activate the virtual environment and run the Python script.
-echo "Activating virtual environment and running '$PYTHON_SCRIPT'..."
+# 3. Activate the virtual environment and run the Python script in the background.
+echo "Activating virtual environment and running '$PYTHON_SCRIPT' in the background..."
 source "$VENV_PATH/bin/activate"
-python3 "$SENSOR_SCRIPT_PATH"
 
-# 4. The Python script is now running. When it stops (e.g., with Ctrl+C),
-# the virtual environment will be deactivated automatically as this script finishes.
-echo "Sensor script has finished."
+# The 'nohup' command makes the script ignore hangup signals, so it keeps running when the terminal closes.
+# The output (stdout and stderr) is redirected to 'sensor.log'.
+# The '&' at the end sends the process to the background.
+nohup python3 "$SENSOR_SCRIPT_PATH" > "$SCRIPT_DIR/sensor.log" 2>&1 &
+
+# 4. Save the Process ID (PID) of the background script to a file.
+# This makes it easy to stop the script later.
+echo $! > "$SCRIPT_DIR/$PID_FILE"
+
+echo "Sensor script is now running in the background."
+echo "Process ID (PID): $(cat "$SCRIPT_DIR/$PID_FILE"). Output is being logged to '$SCRIPT_DIR/sensor.log'."
