@@ -319,8 +319,13 @@ try:
                     y_pos += oled_line_height
                     
                     # Display Air Quality Status
-                    aq_text = f"AQ: {air_quality_score_str}"
-                    draw.text((0, y_pos), aq_text, font=oled_font, fill="white")
+                    aq_display_text = f"AQ: {air_quality_score_str}"
+                    # Add gas resistance in kOhms if the value is valid and we have an AQI score
+                    if gas_resistance_val_csv is not None and air_quality_index is not None and air_quality_index > 0:
+                        # Using 'k' as a shorthand for kOhms to save space
+                        aq_display_text += f" ({gas_resistance_val_csv / 1000:.1f}k)"
+
+                    draw.text((0, y_pos), aq_display_text, font=oled_font, fill="white")
 
         time.sleep(1) # Wait 1 second before the next reading
         
