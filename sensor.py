@@ -3,6 +3,7 @@ import bme680
 import time
 import csv
 import os
+import json
 from datetime import datetime
 
 # OLED display imports
@@ -30,10 +31,9 @@ print("BME680 sensor detected. Reading data...")
 # sensor.set_filter(bme680.FILTER_SIZE_2)
 
 # Configure the gas heater (necessary for gas reading)
-# Adjust temperature and time according to sensor recommendations if you have them
 sensor.set_gas_heater_temperature(320)
 sensor.set_gas_heater_duration(150)
-#sensor.select_gas_heater(bme680.GASSENSOR_ENABLE)
+sensor.select_gas_heater_profile(0)  # Enable the gas heater
 
 # OLED Display Setup
 oled_device = None
@@ -50,10 +50,74 @@ POOR_AIR_THRESHOLD_RATIO = 0.70   # Current gas < baseline * 0.70 -> Poor
                                 # Otherwise -> Moderate
 RECALIBRATION_INTERVAL_S = 4 * 3600 # Recalibrate every 4 hours (0 to disable)
 
+# Reference values for typical clean air (50kΩ - 200kΩ)
+TYPICAL_CLEAN_AIR_MIN = 50000  # 50 kΩ
+TYPICAL_CLEAN_AIR_MAX = 200000 # 200 kΩ
+
+# Baseline persistence file
+BASELINE_FILE = "gas_baseline.json"
+
 current_calibration_start_time = time.time() # Start time of the current burn-in/baseline phase
 time_baseline_established = 0.0              # Timestamp when gas_baseline was last successfully computed
 gas_baseline = None
 baseline_gas_readings = []
+
+def load_baseline():
+    """Load baseline from file if it exists and is recent enough."""
+    global gas_baseline, time_baseline_established
+    
+    if os.path.exists(BASELINE_FILE):
+        try:
+            with open(BASELINE_FILE, 'r') as f:
+                data = json.load(f)
+                saved_baseline = data.get('baseline')
+                saved_timestamp = data.get('timestamp')
+                
+                if saved_baseline and saved_timestamp:
+                    # Check if baseline is not too old (less than 24 hours)
+                    age_hours = (time.time() - saved_timestamp) / 3600
+                    if age_hours < 24:
+                        gas_baseline = saved_baseline
+                        time_baseline_established = saved_timestamp
+                        print(f"Loaded baseline from file: {gas_baseline:.2f} Ohms")
+                        print(f"Baseline age: {age_hours:.1f} hours")
+                        
+                        # Validate against typical clean air range
+                        if gas_baseline < TYPICAL_CLEAN_AIR_MIN:
+                            print(f"⚠️  WARNING: Baseline ({gas_baseline:.0f} Ω) is below typical clean air range ({TYPICAL_CLEAN_AIR_MIN/1000:.0f}kΩ)")
+                            print("   Your baseline environment may have been contaminated.")
+                        elif gas_baseline > TYPICAL_CLEAN_AIR_MAX:
+                            print(f"✓ Baseline is in good range for clean air")
+                        
+                        return True
+                    else:
+                        print(f"Baseline file is too old ({age_hours:.1f} hours). Will recalibrate.")
+                        
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Error loading baseline file: {e}")
+    
+    return False
+
+def save_baseline():
+    """Save current baseline to file."""
+    if gas_baseline is not None:
+        try:
+            data = {
+                'baseline': gas_baseline,
+                'timestamp': time_baseline_established,
+                'timestamp_readable': datetime.fromtimestamp(time_baseline_established).strftime('%Y-%m-%d %H:%M:%S')
+            }
+            with open(BASELINE_FILE, 'w') as f:
+                json.dump(data, f, indent=2)
+            print(f"Baseline saved to {BASELINE_FILE}")
+        except IOError as e:
+            print(f"Error saving baseline file: {e}")
+
+# Try to load existing baseline
+baseline_loaded = load_baseline()
+if baseline_loaded:
+    # Skip burn-in and baseline sampling if we loaded a valid baseline
+    current_calibration_start_time = time.time() - (BURN_IN_DURATION_S + BASELINE_SAMPLING_DURATION_S)
 
 try:
     # Common I2C address for 0.96" OLED is 0x3C
@@ -88,6 +152,15 @@ if write_header:
     csv_writer.writerow(header)
     csv_file.flush() # Ensure the header is written immediately
 
+print("\n" + "="*60)
+print("CALIBRATION TIPS FOR BEST RESULTS:")
+print("="*60)
+print("• Position sensor in CLEAN AIR environment during burn-in")
+print("• Open windows or place sensor outdoors for baseline")
+print("• Avoid smoke, cooking fumes, or chemicals nearby")
+print("• Clean air baseline: 50kΩ - 200kΩ is typical")
+print("="*60 + "\n")
+
 print("Reading data every second. Press Ctrl+C to exit.")
 print(f"Data will be saved to '{CSV_FILENAME}'")
 
@@ -100,6 +173,7 @@ try:
            RECALIBRATION_INTERVAL_S > 0 and \
            (current_time - time_baseline_established > RECALIBRATION_INTERVAL_S):
             print(f"\n--- Recalibration triggered (interval: {RECALIBRATION_INTERVAL_S // 3600}h) ---")
+            print("⚠️  IMPORTANT: Ensure sensor is in CLEAN AIR for accurate baseline!")
             current_calibration_start_time = current_time # Reset for new burn-in
             gas_baseline = None
             baseline_gas_readings = []
@@ -109,7 +183,7 @@ try:
         if sensor.get_sensor_data():
             elapsed_time_current_phase = current_time - current_calibration_start_time
 
-            # Preparar datos para la salida en consola
+            # Prepare data for console output
             output = '{0:.2f} C, {1:.2f} %RH, {2:.2f} hPa'.format(
                 sensor.data.temperature,
                 sensor.data.humidity,
@@ -121,30 +195,50 @@ try:
 
             if sensor.data.heat_stable:
                 # Gas resistance takes time to stabilize after turning on the heater
-                gas_resistance_str_console = '{0:.2f} Gas Ohms'.format(sensor.data.gas_resistance)
-                gas_resistance_val_csv = '{0:.2f}'.format(sensor.data.gas_resistance)
-
                 current_gas_resistance = sensor.data.gas_resistance
+                gas_resistance_str_console = '{0:.2f} Gas Ohms ({1:.1f} kΩ)'.format(
+                    current_gas_resistance, 
+                    current_gas_resistance / 1000
+                )
+                gas_resistance_val_csv = '{0:.2f}'.format(current_gas_resistance)
 
                 if elapsed_time_current_phase < BURN_IN_DURATION_S:
-                    air_quality_score_str = "Burn-in"
+                    remaining = BURN_IN_DURATION_S - elapsed_time_current_phase
+                    air_quality_score_str = f"Burn-in ({int(remaining)}s)"
                 elif elapsed_time_current_phase < BURN_IN_DURATION_S + BASELINE_SAMPLING_DURATION_S:
                     baseline_gas_readings.append(current_gas_resistance)
-                    air_quality_score_str = "Baseline..."
-                    # Update OLED to show baseline progress if desired
-                    # e.g., "Baseline {len(baseline_gas_readings)}/{int(BASELINE_SAMPLING_DURATION_S / (interval_of_this_loop))}"
+                    samples_collected = len(baseline_gas_readings)
+                    air_quality_score_str = f"Baseline ({samples_collected})"
                 else:
                     if gas_baseline is None: # Calculate baseline if not already done in this calibration phase
                         if baseline_gas_readings:
                             gas_baseline = sum(baseline_gas_readings) / len(baseline_gas_readings)
                             time_baseline_established = current_time
                             timestamp_baseline_str = datetime.fromtimestamp(time_baseline_established).strftime('%Y-%m-%d %H:%M:%S')
-                            print(f"Gas baseline established: {gas_baseline:.2f} Ohms at {timestamp_baseline_str}")
+                            print(f"\n{'='*60}")
+                            print(f"✓ Gas baseline established: {gas_baseline:.2f} Ohms ({gas_baseline/1000:.1f} kΩ)")
+                            print(f"  Timestamp: {timestamp_baseline_str}")
+                            
+                            # Validate baseline against typical clean air values
+                            if gas_baseline < TYPICAL_CLEAN_AIR_MIN:
+                                print(f"  ⚠️  WARNING: Baseline is LOW ({gas_baseline/1000:.1f} kΩ)")
+                                print(f"     Typical clean air: {TYPICAL_CLEAN_AIR_MIN/1000:.0f}-{TYPICAL_CLEAN_AIR_MAX/1000:.0f} kΩ")
+                                print(f"     Your environment may be contaminated!")
+                                print(f"     Consider recalibrating in cleaner air.")
+                            elif gas_baseline > TYPICAL_CLEAN_AIR_MAX:
+                                print(f"  ✓ Excellent! Baseline indicates very clean air")
+                            else:
+                                print(f"  ✓ Baseline is within typical clean air range")
+                            
+                            print(f"{'='*60}\n")
+                            
+                            # Save baseline to file
+                            save_baseline()
+                            
                             baseline_gas_readings = [] # Clear after use
                         else:
                             # This case means no stable readings were collected during baseline period
                             air_quality_score_str = "Baseline Fail"
-                            # Optionally, could try to re-baseline or use a default
 
                     if gas_baseline is not None:
                         ratio = current_gas_resistance / gas_baseline
@@ -164,9 +258,9 @@ try:
                      air_quality_score_str = "Gas Heating"
 
             output += f', {gas_resistance_str_console}, AQ: {air_quality_score_str}'
-            #print(output) # Un-commented to see console output
+            print(output)
+            
             # Prepare data for the CSV file
-            # This timestamp is also used for the OLED if needed, or generate a new one
             timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             csv_row = [
                 timestamp_str,
@@ -181,18 +275,11 @@ try:
 
             # Update OLED display if available
             if oled_device and oled_font:
-
                 with canvas(oled_device) as draw:
-                    # Clear screen by drawing a black filled rectangle (handled by canvas context manager)
-                    # Or draw.rectangle(oled_device.bounding_box, outline="black", fill="black")
-
                     # Draw title in the yellow section
-                    # For simplicity, left-aligning. Centering would require font metrics.
                     title_x = 0
-                    # Try to vertically center the title a bit within the yellow section
-                    # This is an approximation, true centering needs font bounding box.
                     title_y = (OLED_YELLOW_SECTION_HEIGHT - oled_line_height) // 2
-                    if title_y < 0: title_y = 0 # Ensure it's not negative if font is too large
+                    if title_y < 0: title_y = 0
                     draw.text((title_x, title_y), OLED_TITLE_TEXT, font=oled_font, fill="white")
 
                     # Start drawing sensor data below the yellow section
@@ -205,16 +292,17 @@ try:
                     text_line = f"H: {sensor.data.humidity:.1f} %RH"
                     draw.text((0, y_pos), text_line, font=oled_font, fill="white")
                     y_pos += oled_line_height
+                    
                     text_line = f"P: {sensor.data.pressure:.1f} hPa"
                     draw.text((0, y_pos), text_line, font=oled_font, fill="white")
                     y_pos += oled_line_height
                     
-                    # --- Last line: Display Air Quality Status ---
-                    # This replaces the old ticker logic with a simple, static display.
-                    aq_text = f"Air Quality: {air_quality_score_str}"
+                    # Display Air Quality Status
+                    aq_text = f"AQ: {air_quality_score_str}"
                     draw.text((0, y_pos), aq_text, font=oled_font, fill="white")
 
         time.sleep(1) # Wait 1 second before the next reading
+        
 except KeyboardInterrupt:
     print("\nSensor reading stopped.")
 finally:
