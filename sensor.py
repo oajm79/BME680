@@ -148,9 +148,19 @@ csv_file = open(CSV_FILENAME, 'a', newline='')
 csv_writer = csv.writer(csv_file)
 
 if write_header:
-    header = ['Timestamp', 'Temperature (C)', 'Humidity (%RH)', 'Pressure (hPa)', 'Gas Resistance (Ohms)', 'Air Quality']
+    # Headers with units included for easy dashboard integration
+    header = [
+        'timestamp',
+        'temperature_c',
+        'humidity_rh', 
+        'pressure_hpa',
+        'gas_resistance_ohms',
+        'air_quality_index',
+        'air_quality_label'
+    ]
     csv_writer.writerow(header)
     csv_file.flush() # Ensure the header is written immediately
+    print(f"Created new CSV file: {CSV_FILENAME} with headers")
 
 print("\n" + "="*60)
 print("CALIBRATION TIPS FOR BEST RESULTS:")
@@ -190,7 +200,8 @@ try:
                 sensor.data.pressure)
 
             gas_resistance_str_console = "Heating gas sensor..."
-            gas_resistance_val_csv = "N/A"
+            gas_resistance_val_csv = None  # Will be numeric or None
+            air_quality_index = None  # Numeric index for analysis
             air_quality_score_str = "Calibrating..." # Default AQ score
 
             if sensor.data.heat_stable:
@@ -200,15 +211,17 @@ try:
                     current_gas_resistance, 
                     current_gas_resistance / 1000
                 )
-                gas_resistance_val_csv = '{0:.2f}'.format(current_gas_resistance)
+                gas_resistance_val_csv = current_gas_resistance  # Keep as numeric
 
                 if elapsed_time_current_phase < BURN_IN_DURATION_S:
                     remaining = BURN_IN_DURATION_S - elapsed_time_current_phase
                     air_quality_score_str = f"Burn-in ({int(remaining)}s)"
+                    air_quality_index = 0  # Calibrating
                 elif elapsed_time_current_phase < BURN_IN_DURATION_S + BASELINE_SAMPLING_DURATION_S:
                     baseline_gas_readings.append(current_gas_resistance)
                     samples_collected = len(baseline_gas_readings)
                     air_quality_score_str = f"Baseline ({samples_collected})"
+                    air_quality_index = 0  # Calibrating
                 else:
                     if gas_baseline is None: # Calculate baseline if not already done in this calibration phase
                         if baseline_gas_readings:
@@ -239,35 +252,43 @@ try:
                         else:
                             # This case means no stable readings were collected during baseline period
                             air_quality_score_str = "Baseline Fail"
+                            air_quality_index = 0
 
                     if gas_baseline is not None:
                         ratio = current_gas_resistance / gas_baseline
                         if ratio > GOOD_AIR_THRESHOLD_RATIO:
                             air_quality_score_str = "Good"
+                            air_quality_index = 3  # Good = 3
                         elif ratio < POOR_AIR_THRESHOLD_RATIO:
                             air_quality_score_str = "Poor"
+                            air_quality_index = 1  # Poor = 1
                         else:
                             air_quality_score_str = "Moderate"
+                            air_quality_index = 2  # Moderate = 2
                     elif air_quality_score_str != "Baseline Fail": # If not already failed
                         air_quality_score_str = "Need Baseline"
+                        air_quality_index = 0
 
             else: # Not heat_stable
                 if elapsed_time_current_phase < BURN_IN_DURATION_S:
                      air_quality_score_str = "Burn-in (Gas)"
+                     air_quality_index = 0
                 else:
                      air_quality_score_str = "Gas Heating"
+                     air_quality_index = 0
 
             output += f', {gas_resistance_str_console}, AQ: {air_quality_score_str}'
             print(output)
             
-            # Prepare data for the CSV file
+            # Prepare data for the CSV file - Keep numeric values as numbers
             timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             csv_row = [
                 timestamp_str,
-                '{0:.2f}'.format(sensor.data.temperature),
-                '{0:.2f}'.format(sensor.data.humidity),
-                '{0:.2f}'.format(sensor.data.pressure),
-                gas_resistance_val_csv,
+                round(sensor.data.temperature, 2),
+                round(sensor.data.humidity, 2),
+                round(sensor.data.pressure, 2),
+                round(gas_resistance_val_csv, 2) if gas_resistance_val_csv is not None else None,
+                air_quality_index,
                 air_quality_score_str
             ]
             csv_writer.writerow(csv_row)
