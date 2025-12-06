@@ -7,9 +7,11 @@
 # --- Configuration ---
 VENV_DIR="venv"
 PYTHON_SCRIPT="sensor.py"
+LOG_DIR="logs"
 PID_FILE="sensor.pid"
 LOG_FILE="sensor.log"
 SCRIPT_LOG="sensor_control.log"
+HISTORY_LOG="sensor_history.log"
 MAX_LOG_SIZE_MB=50
 
 # --- Color Output ---
@@ -178,7 +180,7 @@ cmd_start() {
     fi
     
     # Start the sensor
-    echo "$(date): Sensor started" >> "$SCRIPT_DIR/sensor_history.log"
+    echo "$(date): Sensor started" >> "$HISTORY_LOG_FILE"
     
     log_info "Starting sensor script in the background..."
     nohup python3 "$SENSOR_SCRIPT_PATH" > "$LOG_FILE" 2>&1 &
@@ -245,7 +247,7 @@ cmd_stop() {
     if ! ps -p "$PID" > /dev/null 2>&1; then
         log_info "✓ Sensor stopped successfully!"
         rm -f "$PID_FILE"
-        echo "$(date): Sensor stopped" >> "$SCRIPT_DIR/sensor_history.log"
+        echo "$(date): Sensor stopped" >> "$HISTORY_LOG_FILE"
     else
         log_error "Failed to stop the process!"
         exit 1
@@ -328,11 +330,16 @@ EOF
 
 # --- Main Script Logic ---
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+LOG_DIR_PATH="$SCRIPT_DIR/$LOG_DIR"
 VENV_PATH="$SCRIPT_DIR/$VENV_DIR"
 SENSOR_SCRIPT_PATH="$SCRIPT_DIR/$PYTHON_SCRIPT"
-PID_FILE="$SCRIPT_DIR/$PID_FILE"
-LOG_FILE="$SCRIPT_DIR/$LOG_FILE"
-SCRIPT_LOG="$SCRIPT_DIR/$SCRIPT_LOG"
+PID_FILE="$LOG_DIR_PATH/$PID_FILE"
+LOG_FILE="$LOG_DIR_PATH/$LOG_FILE"
+SCRIPT_LOG="$LOG_DIR_PATH/$SCRIPT_LOG"
+HISTORY_LOG_FILE="$LOG_DIR_PATH/$HISTORY_LOG"
+
+# Create log directory if it doesn't exist
+mkdir -p "$LOG_DIR_PATH"
 
 # Check for command argument
 if [ $# -eq 0 ]; then
