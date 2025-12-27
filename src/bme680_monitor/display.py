@@ -177,7 +177,7 @@ class OLEDDisplay:
         y_pos += self.line_height
 
         # Air Quality
-        aq_display_text = f"Aire: {air_quality_label}"
+        aq_display_text = f"AQ: {air_quality_label}"
         if (gas_resistance is not None and
             air_quality_index is not None and
             air_quality_index > 0):
@@ -185,29 +185,50 @@ class OLEDDisplay:
         draw.text((0, y_pos), aq_display_text, font=self.font, fill="white")
 
     def _draw_comfort_view(self, draw, y_pos: int, comfort_report: dict) -> None:
-        """Draw comfort assessment view."""
-        # Overall comfort summary
+        """Draw comfort assessment view with large emoji."""
+        # Get comfort level
+        comfort_level = comfort_report['overall_comfort']['level']
         comfort_summary = comfort_report['overall_comfort']['summary']
-        draw.text((0, y_pos), f"Estado: {comfort_summary}", font=self.font, fill="white")
-        y_pos += self.line_height
-        y_pos += 2  # Small spacing
 
-        # Temperature recommendation (shortened)
-        temp_rec = comfort_report['temperature']['recommendation']
-        temp_short = self._shorten_recommendation(temp_rec)
-        draw.text((0, y_pos), temp_short, font=self.font, fill="white")
-        y_pos += self.line_height
+        # Map comfort level to emoji and English text
+        comfort_display = self._get_comfort_display(comfort_level, comfort_summary)
 
-        # Humidity recommendation (shortened)
-        humid_rec = comfort_report['humidity']['recommendation']
-        humid_short = self._shorten_recommendation(humid_rec)
-        draw.text((0, y_pos), humid_short, font=self.font, fill="white")
-        y_pos += self.line_height
+        # Draw large emoji (use larger font for emoji)
+        try:
+            # Try to load larger font for emoji
+            large_font = ImageFont.truetype("DejaVuSans.ttf", 28)
+        except:
+            large_font = self.font
 
-        # Pressure forecast (shortened)
-        press_forecast = comfort_report['pressure']['forecast']
-        press_short = self._shorten_recommendation(press_forecast)
-        draw.text((0, y_pos), press_short, font=self.font, fill="white")
+        # Center the emoji
+        emoji = comfort_display['emoji']
+        emoji_bbox = draw.textbbox((0, 0), emoji, font=large_font)
+        emoji_width = emoji_bbox[2] - emoji_bbox[0]
+        emoji_x = (self.width - emoji_width) // 2
+
+        draw.text((emoji_x, y_pos), emoji, font=large_font, fill="white")
+        y_pos += 30  # Space for large emoji
+
+        # Draw comfort text centered
+        text = comfort_display['text']
+        text_bbox = draw.textbbox((0, 0), text, font=self.font)
+        text_width = text_bbox[2] - text_bbox[0]
+        text_x = (self.width - text_width) // 2
+
+        draw.text((text_x, y_pos), text, font=self.font, fill="white")
+
+    def _get_comfort_display(self, comfort_level: int, comfort_summary: str) -> dict:
+        """Map comfort level to emoji and English text."""
+        # ComfortLevel enum: VERY_UNCOMFORTABLE=0, UNCOMFORTABLE=1, ACCEPTABLE=2, COMFORTABLE=3, VERY_COMFORTABLE=4
+        comfort_map = {
+            4: {'emoji': '😊', 'text': 'Excellent'},      # Very Comfortable
+            3: {'emoji': '🙂', 'text': 'Good'},           # Comfortable
+            2: {'emoji': '😐', 'text': 'Acceptable'},     # Acceptable
+            1: {'emoji': '😟', 'text': 'Uncomfortable'},  # Uncomfortable
+            0: {'emoji': '😫', 'text': 'Poor'},           # Very Uncomfortable
+        }
+
+        return comfort_map.get(comfort_level, {'emoji': '❓', 'text': 'Unknown'})
 
     def _draw_fallback_view(
         self,
@@ -237,7 +258,7 @@ class OLEDDisplay:
         y_pos += self.line_height
 
         # Air Quality
-        aq_display_text = f"Aire: {air_quality_label}"
+        aq_display_text = f"AQ: {air_quality_label}"
         if (gas_resistance is not None and
             air_quality_index is not None and
             air_quality_index > 0):
@@ -260,41 +281,41 @@ class OLEDDisplay:
     def _get_temp_short_label(self, temperature: float, comfort_report: dict) -> str:
         """Get short temperature label for OLED display."""
         if temperature < 10:
-            return f"Muy Frio {temperature:.1f}C"
+            return f"Very Cold {temperature:.1f}C"
         elif temperature < 18:
-            return f"Frio {temperature:.1f}C"
+            return f"Cold {temperature:.1f}C"
         elif temperature <= 24:
-            return f"Perfecto {temperature:.1f}C"
+            return f"Perfect {temperature:.1f}C"
         elif temperature <= 28:
-            return f"Calido {temperature:.1f}C"
+            return f"Warm {temperature:.1f}C"
         else:
-            return f"Muy Calor {temperature:.1f}C"
+            return f"Very Hot {temperature:.1f}C"
 
     def _get_humid_short_label(self, humidity: float, comfort_report: dict) -> str:
         """Get short humidity label for OLED display."""
         if humidity < 30:
-            return f"Muy Seco {humidity:.0f}%"
+            return f"Very Dry {humidity:.0f}%"
         elif humidity < 40:
-            return f"Seco {humidity:.0f}%"
+            return f"Dry {humidity:.0f}%"
         elif humidity <= 60:
             return f"Ideal {humidity:.0f}%"
         elif humidity <= 70:
-            return f"Humedo {humidity:.0f}%"
+            return f"Humid {humidity:.0f}%"
         else:
-            return f"Muy Humedo {humidity:.0f}%"
+            return f"Very Humid {humidity:.0f}%"
 
     def _get_pressure_short_label(self, pressure: float, comfort_report: dict) -> str:
         """Get short pressure label for OLED display."""
         if pressure < 980:
-            return f"Tormenta {pressure:.0f}"
+            return f"Storm {pressure:.0f}"
         elif pressure < 1000:
-            return f"Lluvioso {pressure:.0f}"
+            return f"Rainy {pressure:.0f}"
         elif pressure <= 1025:
             return f"Normal {pressure:.0f}"
         elif pressure <= 1035:
-            return f"Despejado {pressure:.0f}"
+            return f"Clear {pressure:.0f}"
         else:
-            return f"Muy Seco {pressure:.0f}"
+            return f"Very Dry {pressure:.0f}"
 
     def clear(self) -> None:
         """Clear the OLED display."""
