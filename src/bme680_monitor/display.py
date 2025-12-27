@@ -1,6 +1,7 @@
 """OLED display management for BME680 sensor readings."""
 
 import logging
+import time
 from typing import Optional
 from luma.core.interface.serial import i2c
 from luma.core.render import canvas
@@ -55,6 +56,11 @@ class OLEDDisplay:
         self.device: Optional[ssd1306] = None
         self.font: Optional[ImageFont.FreeTypeFont] = None
 
+        # Display alternation state
+        self._last_switch_time = time.time()
+        self._show_comfort_view = False
+        self._switch_interval = 3.0  # Switch every 3 seconds
+
         if self.enabled:
             self._initialize()
 
@@ -108,62 +114,148 @@ class OLEDDisplay:
         if not self.enabled or not self.device or not self.font:
             return
 
+        # Check if it's time to switch views
+        current_time = time.time()
+        if current_time - self._last_switch_time >= self._switch_interval:
+            self._show_comfort_view = not self._show_comfort_view
+            self._last_switch_time = current_time
+
         try:
             with canvas(self.device) as draw:
                 # Draw title in the yellow section
                 title_x = 0
                 title_y = max(0, (self.yellow_section_height - self.line_height) // 2)
-                draw.text((title_x, title_y), self.title, font=self.font, fill="white")
+
+                if self._show_comfort_view and comfort_report:
+                    draw.text((title_x, title_y), "Confort", font=self.font, fill="white")
+                else:
+                    draw.text((title_x, title_y), self.title, font=self.font, fill="white")
 
                 # Start drawing sensor data below the yellow section
                 y_pos = self.yellow_section_height
 
-                # If comfort report is available, use human-readable labels
-                if comfort_report:
-                    # Temperature with interpretation
-                    temp_label = self._get_temp_short_label(temperature, comfort_report)
-                    draw.text((0, y_pos), temp_label, font=self.font, fill="white")
-                    y_pos += self.line_height
-
-                    # Humidity with interpretation
-                    humid_label = self._get_humid_short_label(humidity, comfort_report)
-                    draw.text((0, y_pos), humid_label, font=self.font, fill="white")
-                    y_pos += self.line_height
-
-                    # Pressure with weather
-                    press_label = self._get_pressure_short_label(pressure, comfort_report)
-                    draw.text((0, y_pos), press_label, font=self.font, fill="white")
-                    y_pos += self.line_height
+                # Alternate between normal view and comfort view
+                if self._show_comfort_view and comfort_report:
+                    self._draw_comfort_view(draw, y_pos, comfort_report)
+                elif comfort_report:
+                    self._draw_normal_view(draw, y_pos, temperature, humidity, pressure,
+                                          air_quality_label, gas_resistance, air_quality_index,
+                                          comfort_report)
                 else:
-                    # Fallback to technical values if no comfort report
-                    # Temperature
-                    text_line = f"T: {temperature:.1f} C"
-                    draw.text((0, y_pos), text_line, font=self.font, fill="white")
-                    y_pos += self.line_height
-
-                    # Humidity
-                    text_line = f"H: {humidity:.1f} %RH"
-                    draw.text((0, y_pos), text_line, font=self.font, fill="white")
-                    y_pos += self.line_height
-
-                    # Pressure
-                    text_line = f"P: {pressure:.1f} hPa"
-                    draw.text((0, y_pos), text_line, font=self.font, fill="white")
-                    y_pos += self.line_height
-
-                # Air Quality
-                aq_display_text = f"Aire: {air_quality_label}"
-
-                # Add gas resistance in kOhms if available (optional)
-                if (gas_resistance is not None and
-                    air_quality_index is not None and
-                    air_quality_index > 0):
-                    aq_display_text += f" ({gas_resistance / 1000:.0f}k)"
-
-                draw.text((0, y_pos), aq_display_text, font=self.font, fill="white")
+                    self._draw_fallback_view(draw, y_pos, temperature, humidity, pressure,
+                                           air_quality_label, gas_resistance, air_quality_index)
 
         except Exception as e:
             logger.error(f"Error updating OLED display: {e}")
+
+    def _draw_normal_view(
+        self,
+        draw,
+        y_pos: int,
+        temperature: float,
+        humidity: float,
+        pressure: float,
+        air_quality_label: str,
+        gas_resistance: Optional[float],
+        air_quality_index: Optional[int],
+        comfort_report: dict
+    ) -> None:
+        """Draw normal sensor readings view."""
+        # Temperature with interpretation (with T: prefix)
+        temp_label = self._get_temp_short_label(temperature, comfort_report)
+        draw.text((0, y_pos), f"T: {temp_label}", font=self.font, fill="white")
+        y_pos += self.line_height
+
+        # Humidity with interpretation (with H: prefix)
+        humid_label = self._get_humid_short_label(humidity, comfort_report)
+        draw.text((0, y_pos), f"H: {humid_label}", font=self.font, fill="white")
+        y_pos += self.line_height
+
+        # Pressure with weather (with P: prefix)
+        press_label = self._get_pressure_short_label(pressure, comfort_report)
+        draw.text((0, y_pos), f"P: {press_label}", font=self.font, fill="white")
+        y_pos += self.line_height
+
+        # Air Quality
+        aq_display_text = f"Aire: {air_quality_label}"
+        if (gas_resistance is not None and
+            air_quality_index is not None and
+            air_quality_index > 0):
+            aq_display_text += f" ({gas_resistance / 1000:.0f}k)"
+        draw.text((0, y_pos), aq_display_text, font=self.font, fill="white")
+
+    def _draw_comfort_view(self, draw, y_pos: int, comfort_report: dict) -> None:
+        """Draw comfort assessment view."""
+        # Overall comfort summary
+        comfort_summary = comfort_report['overall_comfort']['summary']
+        draw.text((0, y_pos), f"Estado: {comfort_summary}", font=self.font, fill="white")
+        y_pos += self.line_height
+        y_pos += 2  # Small spacing
+
+        # Temperature recommendation (shortened)
+        temp_rec = comfort_report['temperature']['recommendation']
+        temp_short = self._shorten_recommendation(temp_rec)
+        draw.text((0, y_pos), temp_short, font=self.font, fill="white")
+        y_pos += self.line_height
+
+        # Humidity recommendation (shortened)
+        humid_rec = comfort_report['humidity']['recommendation']
+        humid_short = self._shorten_recommendation(humid_rec)
+        draw.text((0, y_pos), humid_short, font=self.font, fill="white")
+        y_pos += self.line_height
+
+        # Pressure forecast (shortened)
+        press_forecast = comfort_report['pressure']['forecast']
+        press_short = self._shorten_recommendation(press_forecast)
+        draw.text((0, y_pos), press_short, font=self.font, fill="white")
+
+    def _draw_fallback_view(
+        self,
+        draw,
+        y_pos: int,
+        temperature: float,
+        humidity: float,
+        pressure: float,
+        air_quality_label: str,
+        gas_resistance: Optional[float],
+        air_quality_index: Optional[int]
+    ) -> None:
+        """Draw fallback technical view when no comfort report available."""
+        # Temperature
+        text_line = f"T: {temperature:.1f} C"
+        draw.text((0, y_pos), text_line, font=self.font, fill="white")
+        y_pos += self.line_height
+
+        # Humidity
+        text_line = f"H: {humidity:.1f} %RH"
+        draw.text((0, y_pos), text_line, font=self.font, fill="white")
+        y_pos += self.line_height
+
+        # Pressure
+        text_line = f"P: {pressure:.1f} hPa"
+        draw.text((0, y_pos), text_line, font=self.font, fill="white")
+        y_pos += self.line_height
+
+        # Air Quality
+        aq_display_text = f"Aire: {air_quality_label}"
+        if (gas_resistance is not None and
+            air_quality_index is not None and
+            air_quality_index > 0):
+            aq_display_text += f" ({gas_resistance / 1000:.0f}k)"
+        draw.text((0, y_pos), aq_display_text, font=self.font, fill="white")
+
+    def _shorten_recommendation(self, recommendation: str) -> str:
+        """Shorten recommendation text to fit OLED display."""
+        # Remove emoji and leading symbols
+        text = recommendation
+        for emoji in ['✓', '⚠️', '❌', '🥶', '❄️', '🌡️', '🔥', '💧', '💨', '☁️', '⛅', '☀️', '🌧️', '🌤️']:
+            text = text.replace(emoji, '').strip()
+
+        # Truncate if too long (max ~21 chars for 128px width)
+        if len(text) > 21:
+            text = text[:18] + "..."
+
+        return text
 
     def _get_temp_short_label(self, temperature: float, comfort_report: dict) -> str:
         """Get short temperature label for OLED display."""
