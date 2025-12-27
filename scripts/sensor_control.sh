@@ -48,10 +48,16 @@ print_header() {
 rotate_log_if_needed() {
     local logfile=$1
     local max_size_bytes=$((MAX_LOG_SIZE_MB * 1024 * 1024))
-    
+
     if [ -f "$logfile" ]; then
-        local size=$(stat -f%z "$logfile" 2>/dev/null || stat -c%s "$logfile" 2>/dev/null)
-        if [ "$size" -gt "$max_size_bytes" ]; then
+        # Use stat -c%s for Linux (GNU coreutils)
+        local size=$(stat -c%s "$logfile" 2>/dev/null)
+        if [ -z "$size" ]; then
+            # Fallback to stat -f%z for BSD/macOS
+            size=$(stat -f%z "$logfile" 2>/dev/null)
+        fi
+
+        if [ -n "$size" ] && [ "$size" -gt "$max_size_bytes" ]; then
             log_info "Log file $logfile exceeds ${MAX_LOG_SIZE_MB}MB, rotating..."
             mv "$logfile" "${logfile}.old"
             log_info "Old log saved as ${logfile}.old"
@@ -330,12 +336,13 @@ EOF
 
 # --- Main Script Logic ---
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-LOG_DIR_PATH="$SCRIPT_DIR/$LOG_DIR"
-VENV_PATH="$SCRIPT_DIR/$VENV_DIR"
-SENSOR_SCRIPT_PATH="$SCRIPT_DIR/$PYTHON_SCRIPT"
-PID_FILE="$LOG_DIR_PATH/$PID_FILE"
-LOG_FILE="$LOG_DIR_PATH/$LOG_FILE"
-SCRIPT_LOG="$LOG_DIR_PATH/$SCRIPT_LOG"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"  # Parent directory of scripts/
+LOG_DIR_PATH="$PROJECT_ROOT/logs"
+VENV_PATH="$PROJECT_ROOT/$VENV_DIR"
+SENSOR_SCRIPT_PATH="$PROJECT_ROOT/$PYTHON_SCRIPT"
+PID_FILE="$LOG_DIR_PATH/sensor.pid"
+LOG_FILE="$LOG_DIR_PATH/sensor.log"
+SCRIPT_LOG="$LOG_DIR_PATH/sensor_control.log"
 HISTORY_LOG_FILE="$LOG_DIR_PATH/$HISTORY_LOG"
 
 # Create log directory if it doesn't exist

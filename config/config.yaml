@@ -1,0 +1,97 @@
+# BME680 Sensor Configuration File
+
+sensor:
+  # I2C address for BME680 sensor (0x77 or 0x76)
+  i2c_address: 0x77
+
+  # Gas heater settings
+  gas_heater_temperature: 320  # Celsius
+  gas_heater_duration: 150     # milliseconds
+
+  # Sampling interval
+  sampling_interval: 1  # seconds between readings
+
+calibration:
+  # Burn-in phase duration (seconds)
+  burn_in_duration: 300  # 5 minutes
+
+  # Baseline sampling duration (seconds)
+  baseline_sampling_duration: 300  # 5 minutes
+
+  # Recalibration interval (seconds, 0 to disable)
+  recalibration_interval: 14400  # 4 hours
+
+  # Baseline persistence file
+  baseline_file: "gas_baseline.json"
+
+  # Baseline validity period (hours)
+  baseline_max_age: 24
+
+air_quality:
+  # Air quality thresholds (ratio based)
+  good_threshold: 1.35    # ratio > 1.35 = Good
+  poor_threshold: 0.70    # ratio < 0.70 = Poor
+
+  # Reference values for typical clean air (Ohms)
+  clean_air_min: 50000    # 50 kΩ
+  clean_air_max: 200000   # 200 kΩ
+
+oled:
+  # Enable OLED display
+  enabled: true
+
+  # I2C address for OLED display
+  i2c_address: 0x3C
+
+  # Display dimensions
+  width: 128
+  height: 64
+
+  # Yellow section height (for two-color OLEDs)
+  yellow_section_height: 16
+
+  # Font settings
+  font_name: "DejaVuSans.ttf"
+  font_size: 10
+  line_height: 12
+
+  # Display title
+  title: "BME680 Readings"
+
+data_logging:
+  # CSV output file
+  csv_filename: "measures.csv"
+
+  # Flush data to disk after each write
+  flush_immediately: true
+
+  # CSV columns
+  columns:
+    - timestamp
+    - temperature_c
+    - humidity_rh
+    - pressure_hpa
+    - gas_resistance_ohms
+    - air_quality_index
+    - air_quality_label
+
+logging:
+  # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  level: INFO
+
+  # Log format
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+  # Date format
+  date_format: "%Y-%m-%d %H:%M:%S"
+
+  # Log to file
+  file:
+    enabled: true
+    filename: "logs/sensor.log"
+    max_bytes: 10485760  # 10 MB
+    backup_count: 5
+
+  # Log to console
+  console:
+    enabled: true

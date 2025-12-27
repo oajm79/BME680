@@ -1,0 +1,24 @@
+[Unit]
+Description=BME680 Air Quality Monitor
+Documentation=https://github.com/yourusername/BME680
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/BME680
+Environment="PATH=/home/pi/BME680/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/home/pi/BME680/src"
+ExecStart=/home/pi/BME680/venv/bin/python3 /home/pi/BME680/sensor.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening (optional)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
