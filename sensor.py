@@ -249,7 +249,8 @@ def main():
                     pressure=sensor_data.pressure,
                     air_quality_label=air_quality_label,
                     gas_resistance=gas_resistance_val,
-                    air_quality_index=air_quality_index
+                    air_quality_index=air_quality_index,
+                    comfort_report=comfort_report
                 )
 
             # Check if CSV needs rotation (optional)
