@@ -177,11 +177,11 @@ def main():
                 pressure=sensor_data.pressure
             )
 
-            # Format output with interpretations
+            # Format output with interpretations (clear and concise)
             output = (
-                f"🌡️  {comfort_report['temperature']['label']} | "
+                f"{comfort_report['temperature']['label']} | "
                 f"💧 {comfort_report['humidity']['label']} | "
-                f"⛅ {comfort_report['pressure']['label']}"
+                f"{comfort_report['pressure']['label']}"
             )
 
             # Initialize air quality variables
@@ -211,21 +211,25 @@ def main():
                 )
 
             # Log to console
-            output += f" | 🫁 AQ: {air_quality_label}"
+            output += f" | 🫁 Aire: {air_quality_label}"
             logger.info(output)
 
-            # Log detailed interpretations every 10 readings (reduce noise)
+            # Log detailed interpretations every 20 readings (reduce noise)
             if hasattr(main, '_reading_count'):
                 main._reading_count += 1
             else:
                 main._reading_count = 1
 
-            if main._reading_count % 10 == 0:
-                logger.info("📊 Detalles:")
-                logger.info(f"  {comfort_report['temperature']['recommendation']}")
-                logger.info(f"  {comfort_report['humidity']['recommendation']}")
-                logger.info(f"  {comfort_report['pressure']['forecast']}")
-                logger.info(f"  Confort general: {comfort_report['overall_comfort']['summary']} - {comfort_report['overall_comfort']['recommendation']}")
+            if main._reading_count % 20 == 0:
+                logger.info("")
+                logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                logger.info("📊 RESUMEN DE CONDICIONES:")
+                logger.info(f"   Temperatura: {comfort_report['temperature']['recommendation']}")
+                logger.info(f"   Humedad:     {comfort_report['humidity']['recommendation']}")
+                logger.info(f"   Pronóstico:  {comfort_report['pressure']['forecast']}")
+                logger.info(f"   💼 Confort:  {comfort_report['overall_comfort']['summary']} - {comfort_report['overall_comfort']['recommendation']}")
+                logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                logger.info("")
 
             # Log to CSV
             data_logger.log_reading(

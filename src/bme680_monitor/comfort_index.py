@@ -110,31 +110,31 @@ class ComfortIndexCalculator:
         if humidity < self.humidity_very_dry:
             return (
                 HumidityLevel.VERY_DRY,
-                f"Muy Seco ({humidity:.1f}%)",
+                f"MUY SECO {humidity:.0f}%",
                 "⚠️ Aire muy seco. Usar humidificador. Riesgo: irritación respiratoria, piel seca."
             )
         elif humidity < self.humidity_dry:
             return (
                 HumidityLevel.DRY,
-                f"Seco ({humidity:.1f}%)",
+                f"Seco {humidity:.0f}%",
                 "💧 Aire seco. Considerar humidificador. Beber más agua."
             )
         elif humidity <= self.humidity_optimal_max:
             return (
                 HumidityLevel.OPTIMAL,
-                f"Óptimo ({humidity:.1f}%)",
+                f"Ideal {humidity:.0f}%",
                 "✓ Humedad ideal para confort y salud."
             )
         elif humidity <= self.humidity_humid:
             return (
                 HumidityLevel.HUMID,
-                f"Húmedo ({humidity:.1f}%)",
+                f"Húmedo {humidity:.0f}%",
                 "💨 Aire húmedo. Ventilar. Puede haber moho en espacios cerrados."
             )
         else:
             return (
                 HumidityLevel.VERY_HUMID,
-                f"Muy Húmedo ({humidity:.1f}%)",
+                f"MUY HÚMEDO {humidity:.0f}%",
                 "⚠️ Aire muy húmedo. Usar deshumidificador. Riesgo: moho, ácaros."
             )
 
@@ -151,31 +151,31 @@ class ComfortIndexCalculator:
         if pressure < self.pressure_very_low:
             return (
                 PressureLevel.VERY_LOW,
-                f"Muy Baja ({pressure:.1f} hPa)",
+                f"⛈️  TORMENTA ({pressure:.0f})",
                 "🌧️ Tormenta inminente. Probabilidad alta de lluvia fuerte."
             )
         elif pressure < self.pressure_low:
             return (
                 PressureLevel.LOW,
-                f"Baja ({pressure:.1f} hPa)",
+                f"☁️  Lluvioso ({pressure:.0f})",
                 "☁️ Tiempo inestable. Posible lluvia o nubosidad."
             )
         elif pressure <= self.pressure_normal_max:
             return (
                 PressureLevel.NORMAL,
-                f"Normal ({pressure:.1f} hPa)",
+                f"⛅ Normal ({pressure:.0f})",
                 "⛅ Tiempo estable. Condiciones normales."
             )
         elif pressure <= self.pressure_high:
             return (
                 PressureLevel.HIGH,
-                f"Alta ({pressure:.1f} hPa)",
+                f"☀️  Despejado ({pressure:.0f})",
                 "☀️ Buen tiempo. Cielo despejado probable."
             )
         else:
             return (
                 PressureLevel.VERY_HIGH,
-                f"Muy Alta ({pressure:.1f} hPa)",
+                f"🌤️  Seco ({pressure:.0f})",
                 "🌤️ Anticiclón fuerte. Tiempo muy estable y seco."
             )
 
@@ -190,15 +190,15 @@ class ComfortIndexCalculator:
             Tuple of (label, recommendation)
         """
         if temperature < 10:
-            return (f"Muy Frío ({temperature:.1f}°C)", "🥶 Temperatura muy baja. Calentar ambiente.")
+            return (f"🥶 MUY FRÍO {temperature:.1f}°C", "🥶 Temperatura muy baja. Calentar ambiente.")
         elif temperature < self.comfort_temp_min:
-            return (f"Frío ({temperature:.1f}°C)", "❄️ Temperatura baja. Aumentar calefacción.")
+            return (f"❄️  Frío {temperature:.1f}°C", "❄️ Temperatura baja. Aumentar calefacción.")
         elif temperature <= self.comfort_temp_max:
-            return (f"Confortable ({temperature:.1f}°C)", "✓ Temperatura ideal.")
+            return (f"✓ Perfecto {temperature:.1f}°C", "✓ Temperatura ideal.")
         elif temperature <= 28:
-            return (f"Cálido ({temperature:.1f}°C)", "🌡️ Temperatura elevada. Ventilar o usar ventilador.")
+            return (f"🌡️  Cálido {temperature:.1f}°C", "🌡️ Temperatura elevada. Ventilar o usar ventilador.")
         else:
-            return (f"Muy Cálido ({temperature:.1f}°C)", "🔥 Temperatura muy alta. Usar aire acondicionado.")
+            return (f"🔥 MUY CALIENTE {temperature:.1f}°C", "🔥 Temperatura muy alta. Usar aire acondicionado.")
 
     def calculate_heat_index(self, temperature: float, humidity: float) -> Tuple[float, str]:
         """
