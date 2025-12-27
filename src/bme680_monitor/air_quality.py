@@ -40,7 +40,10 @@ class AirQualityCalculator:
         poor_threshold: float,
         clean_air_min: int,
         clean_air_max: int,
-        baseline_max_age_hours: int = 24
+        baseline_max_age_hours: int = 24,
+        excellent_threshold_abs: int = 150000,
+        good_threshold_abs: int = 100000,
+        moderate_threshold_abs: int = 50000
     ):
         """
         Initialize air quality calculator.
@@ -50,11 +53,14 @@ class AirQualityCalculator:
             burn_in_duration: Burn-in phase duration in seconds
             baseline_sampling_duration: Baseline sampling duration in seconds
             recalibration_interval: Recalibration interval in seconds (0 = disabled)
-            good_threshold: Ratio threshold for good air quality
-            poor_threshold: Ratio threshold for poor air quality
+            good_threshold: Ratio threshold for good air quality (relative)
+            poor_threshold: Ratio threshold for poor air quality (relative)
             clean_air_min: Minimum typical clean air resistance (Ohms)
             clean_air_max: Maximum typical clean air resistance (Ohms)
             baseline_max_age_hours: Maximum baseline age before requiring recalibration
+            excellent_threshold_abs: Excellent air threshold in Ohms (absolute)
+            good_threshold_abs: Good air threshold in Ohms (absolute)
+            moderate_threshold_abs: Moderate air threshold in Ohms (absolute)
         """
         self.baseline_file = baseline_file
         self.burn_in_duration = burn_in_duration
@@ -65,6 +71,11 @@ class AirQualityCalculator:
         self.clean_air_min = clean_air_min
         self.clean_air_max = clean_air_max
         self.baseline_max_age_hours = baseline_max_age_hours
+
+        # Absolute thresholds for hybrid algorithm
+        self.excellent_threshold_abs = excellent_threshold_abs
+        self.good_threshold_abs = good_threshold_abs
+        self.moderate_threshold_abs = moderate_threshold_abs
 
         self.gas_baseline: Optional[float] = None
         self.time_baseline_established: float = 0.0
@@ -258,18 +269,79 @@ class AirQualityCalculator:
             self.save_baseline()
             self.baseline_gas_readings = []
 
-        # Calculate air quality based on ratio
+        # Calculate air quality using HYBRID algorithm (absolute + relative)
         if self.gas_baseline is not None:
-            ratio = gas_resistance / self.gas_baseline
+            # 1. Absolute assessment (based on scientific BME680 ranges)
+            absolute_level = self._assess_absolute_quality(gas_resistance)
 
-            if ratio > self.good_threshold:
-                return (AirQualityLevel.GOOD, "Good")
-            elif ratio < self.poor_threshold:
-                return (AirQualityLevel.POOR, "Poor")
-            else:
-                return (AirQualityLevel.MODERATE, "Moderate")
+            # 2. Relative assessment (compared to baseline)
+            ratio = gas_resistance / self.gas_baseline
+            relative_level = self._assess_relative_quality(ratio)
+
+            # 3. Combine assessments (use worst case for safety)
+            final_level = min(absolute_level, relative_level)
+
+            # 4. Return result with label
+            return self._level_to_tuple(final_level)
 
         return (AirQualityLevel.CALIBRATING, "Need Baseline")
+
+    def _assess_absolute_quality(self, gas_resistance: float) -> AirQualityLevel:
+        """
+        Assess air quality based on absolute gas resistance values.
+
+        Uses configurable thresholds based on BME680 research and empirical data.
+        Higher resistance = cleaner air (fewer VOCs and pollutants)
+
+        Args:
+            gas_resistance: Current gas resistance in Ohms
+
+        Returns:
+            AirQualityLevel based on absolute value
+        """
+        if gas_resistance > self.excellent_threshold_abs:
+            return AirQualityLevel.GOOD
+        elif gas_resistance > self.good_threshold_abs:
+            return AirQualityLevel.GOOD
+        elif gas_resistance > self.moderate_threshold_abs:
+            return AirQualityLevel.MODERATE
+        else:
+            return AirQualityLevel.POOR
+
+    def _assess_relative_quality(self, ratio: float) -> AirQualityLevel:
+        """
+        Assess air quality based on ratio to baseline.
+
+        Args:
+            ratio: current_gas / baseline_gas
+
+        Returns:
+            AirQualityLevel based on relative change
+        """
+        if ratio > self.good_threshold:
+            return AirQualityLevel.GOOD
+        elif ratio < self.poor_threshold:
+            return AirQualityLevel.POOR
+        else:
+            return AirQualityLevel.MODERATE
+
+    def _level_to_tuple(self, level: AirQualityLevel) -> Tuple[int, str]:
+        """
+        Convert AirQualityLevel enum to (index, label) tuple.
+
+        Args:
+            level: AirQualityLevel enum
+
+        Returns:
+            Tuple of (numeric_index, human_readable_label)
+        """
+        labels = {
+            AirQualityLevel.CALIBRATING: "Calibrating",
+            AirQualityLevel.POOR: "Poor",
+            AirQualityLevel.MODERATE: "Moderate",
+            AirQualityLevel.GOOD: "Good"
+        }
+        return (level, labels[level])
 
     def get_baseline_info(self) -> Optional[dict]:
         """

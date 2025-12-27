@@ -26,7 +26,8 @@ from bme680_monitor import (
     SensorManager,
     AirQualityCalculator,
     OLEDDisplay,
-    DataLogger
+    DataLogger,
+    ComfortIndexCalculator
 )
 
 
@@ -124,7 +125,10 @@ def main():
         poor_threshold=config.poor_air_threshold,
         clean_air_min=config.clean_air_min,
         clean_air_max=config.clean_air_max,
-        baseline_max_age_hours=config.baseline_max_age
+        baseline_max_age_hours=config.baseline_max_age,
+        excellent_threshold_abs=config.excellent_threshold_abs,
+        good_threshold_abs=config.good_threshold_abs,
+        moderate_threshold_abs=config.moderate_threshold_abs
     )
 
     # Initialize OLED display
@@ -146,6 +150,9 @@ def main():
         flush_immediately=config.flush_immediately
     )
 
+    # Initialize comfort index calculator
+    comfort_calc = ComfortIndexCalculator()
+
     # Print calibration tips
     print_calibration_tips(config)
 
@@ -163,11 +170,18 @@ def main():
                 time.sleep(config.sampling_interval)
                 continue
 
-            # Format basic sensor output
+            # Get comfort interpretations
+            comfort_report = comfort_calc.get_comprehensive_report(
+                temperature=sensor_data.temperature,
+                humidity=sensor_data.humidity,
+                pressure=sensor_data.pressure
+            )
+
+            # Format output with interpretations
             output = (
-                f"{sensor_data.temperature:.2f} C, "
-                f"{sensor_data.humidity:.2f} %RH, "
-                f"{sensor_data.pressure:.2f} hPa"
+                f"🌡️  {comfort_report['temperature']['label']} | "
+                f"💧 {comfort_report['humidity']['label']} | "
+                f"⛅ {comfort_report['pressure']['label']}"
             )
 
             # Initialize air quality variables
@@ -197,8 +211,21 @@ def main():
                 )
 
             # Log to console
-            output += f", {gas_resistance_str}, AQ: {air_quality_label}"
+            output += f" | 🫁 AQ: {air_quality_label}"
             logger.info(output)
+
+            # Log detailed interpretations every 10 readings (reduce noise)
+            if hasattr(main, '_reading_count'):
+                main._reading_count += 1
+            else:
+                main._reading_count = 1
+
+            if main._reading_count % 10 == 0:
+                logger.info("📊 Detalles:")
+                logger.info(f"  {comfort_report['temperature']['recommendation']}")
+                logger.info(f"  {comfort_report['humidity']['recommendation']}")
+                logger.info(f"  {comfort_report['pressure']['forecast']}")
+                logger.info(f"  Confort general: {comfort_report['overall_comfort']['summary']} - {comfort_report['overall_comfort']['recommendation']}")
 
             # Log to CSV
             data_logger.log_reading(

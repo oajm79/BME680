@@ -28,13 +28,24 @@ calibration:
   baseline_max_age: 24
 
 air_quality:
-  # Air quality thresholds (ratio based)
-  good_threshold: 1.35    # ratio > 1.35 = Good
-  poor_threshold: 0.70    # ratio < 0.70 = Poor
+  # === HYBRID ALGORITHM ===
+  # Combines absolute values (scientific ranges) with relative baseline comparison
 
-  # Reference values for typical clean air (Ohms)
-  clean_air_min: 50000    # 50 kΩ
-  clean_air_max: 200000   # 200 kΩ
+  # Relative thresholds (ratio based - for detecting changes from baseline)
+  good_threshold: 1.35    # ratio > 1.35 = improvement from baseline
+  poor_threshold: 0.70    # ratio < 0.70 = degradation from baseline
+
+  # Absolute thresholds (scientific BME680 ranges - Ohms)
+  # These are used to assess air quality independent of baseline
+  # Based on research: higher resistance = cleaner air
+  excellent_threshold: 150000  # > 150 kΩ - Excellent (outdoor clean air)
+  good_threshold_abs: 100000   # 100-150 kΩ - Good (well-ventilated indoor)
+  moderate_threshold: 50000    # 50-100 kΩ - Moderate (typical indoor)
+  # < 50 kΩ = Poor (high VOCs, ventilation needed)
+
+  # Reference values for baseline validation (Ohms)
+  clean_air_min: 50000    # 50 kΩ - Minimum acceptable baseline
+  clean_air_max: 200000   # 200 kΩ - Typical outdoor clean air
 
 oled:
   # Enable OLED display

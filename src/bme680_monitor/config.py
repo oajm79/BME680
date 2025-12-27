@@ -110,13 +110,28 @@ class Config:
     # Air quality configuration
     @property
     def good_air_threshold(self) -> float:
-        """Get good air quality threshold ratio."""
+        """Get good air quality threshold ratio (relative)."""
         return self.get('air_quality.good_threshold', 1.35)
 
     @property
     def poor_air_threshold(self) -> float:
-        """Get poor air quality threshold ratio."""
+        """Get poor air quality threshold ratio (relative)."""
         return self.get('air_quality.poor_threshold', 0.70)
+
+    @property
+    def excellent_threshold_abs(self) -> int:
+        """Get excellent air quality threshold in Ohms (absolute)."""
+        return self.get('air_quality.excellent_threshold', 150000)
+
+    @property
+    def good_threshold_abs(self) -> int:
+        """Get good air quality threshold in Ohms (absolute)."""
+        return self.get('air_quality.good_threshold_abs', 100000)
+
+    @property
+    def moderate_threshold_abs(self) -> int:
+        """Get moderate air quality threshold in Ohms (absolute)."""
+        return self.get('air_quality.moderate_threshold', 50000)
 
     @property
     def clean_air_min(self) -> int:
