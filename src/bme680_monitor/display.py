@@ -59,7 +59,8 @@ class OLEDDisplay:
         # Display alternation state
         self._last_switch_time = time.time()
         self._show_comfort_view = False
-        self._switch_interval = 3.0  # Switch every 3 seconds
+        self._normal_view_duration = 5.0  # Show normal view for 5 seconds
+        self._comfort_view_duration = 3.0  # Show comfort view for 3 seconds
 
         if self.enabled:
             self._initialize()
@@ -114,9 +115,17 @@ class OLEDDisplay:
         if not self.enabled or not self.device or not self.font:
             return
 
-        # Check if it's time to switch views
+        # Check if it's time to switch views (asymmetric timing)
         current_time = time.time()
-        if current_time - self._last_switch_time >= self._switch_interval:
+        time_since_switch = current_time - self._last_switch_time
+
+        # Use different durations depending on current view
+        if self._show_comfort_view:
+            switch_threshold = self._comfort_view_duration
+        else:
+            switch_threshold = self._normal_view_duration
+
+        if time_since_switch >= switch_threshold:
             self._show_comfort_view = not self._show_comfort_view
             self._last_switch_time = current_time
 

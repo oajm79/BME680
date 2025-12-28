@@ -10,8 +10,11 @@ Professional air quality monitoring system for Raspberry Pi using the BME680 env
 
 - **Real-time Environmental Monitoring** - Temperature, humidity, pressure, and air quality
 - **Intelligent Calibration** - Automatic burn-in and baseline establishment with persistence
-- **OLED Display Support** - Live readings on 128x64 SSD1306 display
+- **Hybrid Air Quality Algorithm** - Combines absolute and relative thresholds for accurate readings
+- **Comfort Interpretations** - Human-readable assessments with actionable recommendations
+- **OLED Display Support** - Alternating views with sensor data and comfort emoji
 - **CSV Data Logging** - Structured data export for analysis and dashboards
+- **Optimized Logging** - Reduced log frequency (15 min) while maintaining full CSV data
 - **Configuration Management** - YAML-based configuration without code changes
 - **Professional Logging** - Structured logs with automatic rotation
 - **Service Management** - Systemd integration for auto-start
@@ -26,11 +29,15 @@ BME680/
 │   └── bme680_monitor/    # Main package
 │       ├── config.py      # Configuration management
 │       ├── sensor_manager.py  # BME680 interface
-│       ├── air_quality.py     # AQI calculations
-│       ├── display.py         # OLED display
+│       ├── air_quality.py     # Hybrid AQI algorithm
+│       ├── comfort_index.py   # Comfort interpretations
+│       ├── display.py         # OLED display with alternating views
 │       └── data_logger.py     # CSV logging
 ├── tests/                 # Unit tests
 ├── docs/                  # Documentation
+│   ├── AIR_QUALITY_ALGORITHM.md
+│   ├── COMFORT_INTERPRETATIONS.md
+│   └── CHANGELOG.md
 ├── scripts/               # Utility scripts
 │   ├── sensor_control.sh  # Service control
 │   └── bme680-sensor.service  # Systemd service
@@ -102,6 +109,29 @@ Comprehensive documentation is available in the [docs/](docs/) directory:
 - **[Full Documentation](docs/README.md)** - Complete usage guide
 - **[Migration Guide](docs/MIGRATION.md)** - Upgrading from v1.0
 - **[Changelog](docs/CHANGELOG.md)** - Version history
+- **[Air Quality Algorithm](docs/AIR_QUALITY_ALGORITHM.md)** - Hybrid algorithm explanation
+- **[Comfort Interpretations](docs/COMFORT_INTERPRETATIONS.md)** - Assessment guide
+
+## ⚙️ Configuration
+
+### Logging Frequency
+
+By default, the sensor logs to `sensor.log` every 15 minutes, while `measures.csv` captures every reading. To adjust the log frequency, edit `sensor.py`:
+
+```python
+# Line 23 in sensor.py
+LOG_INTERVAL_MINUTES = 15  # Change to your preferred interval
+```
+
+### OLED Display Timing
+
+The OLED display alternates between two views. To adjust timing, edit `src/bme680_monitor/display.py`:
+
+```python
+# Lines 61-62
+self._normal_view_duration = 5.0   # Normal view duration (seconds)
+self._comfort_view_duration = 3.0  # Comfort view duration (seconds)
+```
 
 ## 🔧 Development
 
@@ -150,13 +180,25 @@ Sensor data is logged to `measures.csv` in this format:
 
 ### Air Quality Algorithm
 
-```
-ratio = current_gas_resistance / baseline
+The system uses a **hybrid algorithm** combining:
 
-Good:     ratio > 1.35
-Moderate: 0.70 ≤ ratio ≤ 1.35
-Poor:     ratio < 0.70
-```
+1. **Relative Assessment** (baseline comparison):
+   ```
+   ratio = current_gas_resistance / baseline
+   Good:     ratio > 1.35
+   Moderate: 0.70 ≤ ratio ≤ 1.35
+   Poor:     ratio < 0.70
+   ```
+
+2. **Absolute Assessment** (scientific thresholds):
+   ```
+   Excellent: > 150 kΩ
+   Good:      > 100 kΩ
+   Moderate:  > 50 kΩ
+   Poor:      < 50 kΩ
+   ```
+
+The final quality is the **minimum** of both assessments for safety. See [AIR_QUALITY_ALGORITHM.md](docs/AIR_QUALITY_ALGORITHM.md) for details.
 
 ## 🛠️ Hardware Setup
 

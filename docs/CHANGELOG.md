@@ -2,6 +2,50 @@
 
 All notable changes to the BME680 Environmental Sensor Monitor project.
 
+## [2.1.0] - 2024-12-28
+
+### ✨ Added
+
+#### Display Enhancements
+- **OLED Display View Alternation** - Screen now alternates between two views:
+  - Normal view (5 seconds): Detailed sensor readings with T:/H:/P: prefixes
+  - Comfort view (3 seconds): Large emoji with comfort status
+  - Configurable durations via `_normal_view_duration` and `_comfort_view_duration`
+  - All labels in English for consistency
+
+#### Comfort Assessment System
+- **`comfort_index.py`** - New comprehensive comfort interpretation module:
+  - Temperature comfort levels with recommendations
+  - Humidity health ranges and guidance
+  - Atmospheric pressure with weather forecasting
+  - Heat index calculation for high temperatures
+  - Overall comfort assessment combining all factors
+- **Hybrid Air Quality Algorithm** - Enhanced air quality detection:
+  - Combines absolute scientific thresholds with relative baseline comparison
+  - Prevents false "Good" readings when calibrated in contaminated air
+  - Uses minimum of both assessments for safety
+  - Documented in `docs/AIR_QUALITY_ALGORITHM.md`
+
+### 🔧 Changed
+
+#### Logging Optimization
+- **Reduced sensor.log frequency** - Now logs every 15 minutes instead of every reading
+  - Configurable via `LOG_INTERVAL_MINUTES` constant (line 23 in sensor.py)
+  - Reduces log file growth while maintaining CSV data completeness
+  - `measures.csv` still logs every reading for detailed analysis
+- **Improved log format** - Clearer structure with detailed conditions summary
+
+#### Display Improvements
+- All OLED labels now in English
+- Added T:/H:/P: prefixes for clarity
+- Changed "Aire:" to "AQ:" for air quality display
+- Comfort view shows large centered emoji with status text
+
+### 📚 Documentation
+- Updated `docs/AIR_QUALITY_ALGORITHM.md` with hybrid algorithm explanation
+- Added `docs/COMFORT_INTERPRETATIONS.md` with detailed interpretation guide
+- Updated configuration examples
+
 ## [2.0.0] - 2024-12-27
 
 ### 🎉 Major Refactoring - Modular Architecture

@@ -9,7 +9,7 @@ Professional air quality monitoring system with:
 - Configurable settings via YAML
 
 Author: BME680 Monitor Project
-Version: 2.0.0
+Version: 2.1.0
 """
 
 import time
@@ -17,6 +17,12 @@ import logging
 import sys
 import os
 from pathlib import Path
+
+# ===== CONFIGURATION CONSTANTS =====
+# Adjust these values to customize logging behavior
+LOG_INTERVAL_MINUTES = 15  # Write to sensor.log every N minutes
+DETAILED_SUMMARY_READINGS = 20  # Show detailed summary every N readings (legacy, not used)
+# ==================================
 
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -101,8 +107,10 @@ def main():
     logger = logging.getLogger(__name__)
 
     logger.info("=" * 60)
-    logger.info("BME680 Environmental Sensor Monitor v2.0.0")
+    logger.info("BME680 Environmental Sensor Monitor v2.1.0")
     logger.info("=" * 60)
+    logger.info(f"Log interval: Every {LOG_INTERVAL_MINUTES} minutes")
+    logger.info(f"CSV logging: Every reading (~{config.sampling_interval}s)")
 
     # Initialize sensor
     try:
@@ -159,6 +167,10 @@ def main():
     logger.info(f"Reading data every {config.sampling_interval} second(s). Press Ctrl+C to exit.")
     logger.info(f"Data will be saved to '{config.csv_filename}'")
 
+    # Track time for logging intervals
+    last_log_time = time.time()
+    log_interval_seconds = LOG_INTERVAL_MINUTES * 60
+
     # Main monitoring loop
     try:
         while True:
@@ -210,26 +222,26 @@ def main():
                     heat_stable=False
                 )
 
-            # Log to console
-            output += f" | 🫁 Aire: {air_quality_label}"
-            logger.info(output)
+            # Log to console only every LOG_INTERVAL_MINUTES
+            current_time = time.time()
+            time_since_last_log = current_time - last_log_time
 
-            # Log detailed interpretations every 20 readings (reduce noise)
-            if hasattr(main, '_reading_count'):
-                main._reading_count += 1
-            else:
-                main._reading_count = 1
-
-            if main._reading_count % 20 == 0:
+            if time_since_last_log >= log_interval_seconds:
+                output += f" | 🫁 Aire: {air_quality_label}"
                 logger.info("")
                 logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                logger.info("📊 RESUMEN DE CONDICIONES:")
-                logger.info(f"   Temperatura: {comfort_report['temperature']['recommendation']}")
-                logger.info(f"   Humedad:     {comfort_report['humidity']['recommendation']}")
-                logger.info(f"   Pronóstico:  {comfort_report['pressure']['forecast']}")
-                logger.info(f"   💼 Confort:  {comfort_report['overall_comfort']['summary']} - {comfort_report['overall_comfort']['recommendation']}")
+                logger.info(f"📊 SENSOR READING ({LOG_INTERVAL_MINUTES} min interval)")
+                logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                logger.info(output)
+                logger.info("")
+                logger.info("Detailed conditions:")
+                logger.info(f"   Temperature: {comfort_report['temperature']['recommendation']}")
+                logger.info(f"   Humidity:    {comfort_report['humidity']['recommendation']}")
+                logger.info(f"   Forecast:    {comfort_report['pressure']['forecast']}")
+                logger.info(f"   💼 Comfort:  {comfort_report['overall_comfort']['summary']} - {comfort_report['overall_comfort']['recommendation']}")
                 logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                 logger.info("")
+                last_log_time = current_time
 
             # Log to CSV
             data_logger.log_reading(
