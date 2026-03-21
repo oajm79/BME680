@@ -1,0 +1,157 @@
+# BME680 Sensor Configuration File
+
+sensor:
+  # I2C address for BME680 sensor (0x77 or 0x76)
+  i2c_address: 0x77
+
+  # Gas heater settings
+  gas_heater_temperature: 320  # Celsius
+  gas_heater_duration: 150     # milliseconds
+
+  # Sampling interval
+  sampling_interval: 1  # seconds between readings
+
+calibration:
+  # Burn-in phase duration (seconds)
+  burn_in_duration: 300  # 5 minutes
+
+  # Baseline sampling duration (seconds)
+  baseline_sampling_duration: 300  # 5 minutes
+
+  # Recalibration interval (seconds, 0 to disable)
+  recalibration_interval: 14400  # 4 hours
+
+  # Baseline persistence file
+  baseline_file: "gas_baseline.json"
+
+  # Baseline validity period (hours)
+  baseline_max_age: 24
+
+air_quality:
+  # === HYBRID ALGORITHM ===
+  # Combines absolute values (scientific ranges) with relative baseline comparison
+
+  # Relative thresholds (ratio based - for detecting changes from baseline)
+  good_threshold: 1.35    # ratio > 1.35 = improvement from baseline
+  poor_threshold: 0.70    # ratio < 0.70 = degradation from baseline
+
+  # Absolute thresholds (scientific BME680 ranges - Ohms)
+  # These are used to assess air quality independent of baseline
+  # Based on research: higher resistance = cleaner air
+  excellent_threshold: 150000  # > 150 kΩ - Excellent (outdoor clean air)
+  good_threshold_abs: 100000   # 100-150 kΩ - Good (well-ventilated indoor)
+  moderate_threshold: 50000    # 50-100 kΩ - Moderate (typical indoor)
+  # < 50 kΩ = Poor (high VOCs, ventilation needed)
+
+  # Reference values for baseline validation (Ohms)
+  clean_air_min: 50000    # 50 kΩ - Minimum acceptable baseline
+  clean_air_max: 200000   # 200 kΩ - Typical outdoor clean air
+
+oled:
+  # Enable OLED display
+  enabled: true
+
+  # I2C address for OLED display
+  i2c_address: 0x3C
+
+  # Display dimensions
+  width: 128
+  height: 64
+
+  # Yellow section height (for two-color OLEDs)
+  yellow_section_height: 16
+
+  # Font settings
+  font_name: "DejaVuSans.ttf"
+  font_size: 10
+  line_height: 12
+
+  # Display title
+  title: "BME680 Readings"
+
+data_logging:
+  # Storage mode: "sqlite" (recommended) or "csv" (legacy)
+  storage_mode: "sqlite"
+
+  # SQLite database settings
+  database:
+    path: "data/sensor_data.db"
+    table_name: "measurements"
+    # Auto-cleanup old data (days, 0 to disable)
+    cleanup_days: 90
+
+  # CSV settings (used if storage_mode is "csv")
+  csv:
+    filename: "measures.csv"
+    flush_immediately: true
+
+telegram:
+  # Enable Telegram notifications
+  enabled: false
+
+  # Bot token and chat ID are loaded from environment variables for security:
+  #   TELEGRAM_BOT_TOKEN - from @BotFather
+  #   TELEGRAM_CHAT_ID - from @userinfobot
+  # Or create a .env file in the project root (see .env.example)
+
+  # Rate limiting (seconds between same alert type)
+  rate_limit_seconds: 300  # 5 minutes
+
+  # Quiet hours (no notifications during this period)
+  # Set to null to disable quiet hours
+  quiet_hours:
+    start: 23  # 11 PM
+    end: 7     # 7 AM
+
+  # Alert thresholds
+  alerts:
+    # Air quality alerts
+    air_quality_poor: true  # Alert when air quality is poor
+
+    # Temperature alerts
+    temperature_high: 30.0  # Alert above this (°C), null to disable
+    temperature_low: 15.0   # Alert below this (°C), null to disable
+
+    # Humidity alerts
+    humidity_high: 70.0     # Alert above this (%), null to disable
+    humidity_low: 30.0      # Alert below this (%), null to disable
+
+    # Daily summary (sent at specified hour)
+    daily_summary: true
+    daily_summary_hour: 20  # 8 PM
+
+    # Startup/shutdown notifications
+    system_notifications: true
+
+location:
+  # Enable weather service for outdoor comparison data
+  enabled: true
+
+  # Geographic coordinates (required if enabled)
+  # Get your coordinates from: https://www.latlong.net/
+  latitude: 0.0000   # Set your latitude here
+  longitude: 0.0000  # Set your longitude here
+
+  # Location name for display in notifications
+  name: "Your City"
+
+logging:
+  # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  level: INFO
+
+  # Log format
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+  # Date format
+  date_format: "%Y-%m-%d %H:%M:%S"
+
+  # Log to file
+  file:
+    enabled: true
+    filename: "logs/sensor.log"
+    max_bytes: 10485760  # 10 MB
+    backup_count: 5
+
+  # Log to console
+  console:
+    enabled: true
