@@ -60,6 +60,7 @@ class WeatherService:
     """
 
     API_BASE = "https://api.open-meteo.com/v1"
+    AQI_API_BASE = "https://air-quality-api.open-meteo.com/v1"
     CACHE_DURATION = 600  # 10 minutes
 
     def __init__(
@@ -143,7 +144,7 @@ class WeatherService:
     def _fetch_air_quality(self) -> Optional[Dict[str, Any]]:
         """Fetch air quality data from Open-Meteo."""
         url = (
-            f"{self.API_BASE}/air-quality?"
+            f"{self.AQI_API_BASE}/air-quality?"
             f"latitude={self.latitude}&longitude={self.longitude}"
             f"&current=us_aqi,pm2_5,pm10"
             f"&timezone=auto"
