@@ -46,6 +46,7 @@ class TelegramNotifier:
         rate_limit_seconds: int = 300,  # 5 minutes between same alert type
         quiet_hours_start: Optional[int] = None,  # 23 = 11 PM
         quiet_hours_end: Optional[int] = None,    # 7 = 7 AM
+        confirmation_readings: int = 5,  # consecutive readings to confirm state change
     ):
         """
         Initialize Telegram notifier.
@@ -57,6 +58,7 @@ class TelegramNotifier:
             rate_limit_seconds: Minimum seconds between same alert type
             quiet_hours_start: Hour to start quiet mode (no notifications)
             quiet_hours_end: Hour to end quiet mode
+            confirmation_readings: Consecutive readings required to confirm a state transition
         """
         self.bot_token = bot_token
         self.chat_id = chat_id
@@ -64,6 +66,7 @@ class TelegramNotifier:
         self.rate_limit_seconds = rate_limit_seconds
         self.quiet_hours_start = quiet_hours_start
         self.quiet_hours_end = quiet_hours_end
+        self.confirmation_readings = confirmation_readings
 
         # Track last alert times for rate limiting
         self._last_alerts: Dict[str, float] = {}
@@ -76,6 +79,10 @@ class TelegramNotifier:
             "humidity_high": False,
             "humidity_low": False,
         }
+
+        # Track pending state transitions (hysteresis)
+        self._pending_state: Dict[str, Optional[bool]] = {}
+        self._pending_count: Dict[str, int] = {}
 
         # API base URL
         self._api_base = f"https://api.telegram.org/bot{bot_token}" if bot_token else None
@@ -113,7 +120,10 @@ class TelegramNotifier:
 
     def _check_state_transition(self, state_key: str, is_bad: bool) -> Optional[str]:
         """
-        Check if there's a state transition for alert purposes.
+        Check if there's a confirmed state transition for alert purposes.
+
+        Requires `confirmation_readings` consecutive readings in the new state
+        before confirming the transition (hysteresis to avoid alert flapping).
 
         Args:
             state_key: Key in _alert_states dict
@@ -122,20 +132,32 @@ class TelegramNotifier:
         Returns:
             "entered" if transitioning to bad state,
             "exited" if transitioning to good state,
-            None if no transition
+            None if no transition or not yet confirmed
         """
         previous_state = self._alert_states.get(state_key, False)
 
-        if is_bad and not previous_state:
-            # Transition: good -> bad
-            self._alert_states[state_key] = True
-            return "entered"
-        elif not is_bad and previous_state:
-            # Transition: bad -> good
-            self._alert_states[state_key] = False
-            return "exited"
+        if is_bad == previous_state:
+            # No change — reset any pending transition
+            self._pending_state[state_key] = None
+            self._pending_count[state_key] = 0
+            return None
 
-        # No transition
+        # Potential transition detected
+        pending = self._pending_state.get(state_key)
+        if pending != is_bad:
+            # New direction — start counting
+            self._pending_state[state_key] = is_bad
+            self._pending_count[state_key] = 1
+        else:
+            self._pending_count[state_key] = self._pending_count.get(state_key, 0) + 1
+
+        if self._pending_count[state_key] >= self.confirmation_readings:
+            # Confirmed — commit the transition
+            self._alert_states[state_key] = is_bad
+            self._pending_state[state_key] = None
+            self._pending_count[state_key] = 0
+            return "entered" if is_bad else "exited"
+
         return None
 
     def _format_outdoor_context(self, weather_data: Optional[Dict[str, Any]]) -> str:
