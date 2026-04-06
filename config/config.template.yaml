@@ -1,0 +1,81 @@
+# BME680 Sensor Configuration File
+# Copy to config.yaml and fill in your values.
+
+sensor:
+  i2c_address: 0x77
+  gas_heater_temperature: 320  # Celsius
+  gas_heater_duration: 150     # milliseconds
+  sampling_interval: 1         # seconds between readings
+
+calibration:
+  burn_in_duration: 300
+  baseline_sampling_duration: 300
+  recalibration_interval: 14400
+  baseline_file: "gas_baseline.json"
+  baseline_max_age: 24
+
+air_quality:
+  good_threshold: 1.35
+  poor_threshold: 0.70
+  excellent_threshold: 150000
+  good_threshold_abs: 100000
+  moderate_threshold: 50000
+  clean_air_min: 50000
+  clean_air_max: 200000
+
+oled:
+  enabled: true
+  i2c_address: 0x3C
+  width: 128
+  height: 64
+  yellow_section_height: 16
+  font_name: "DejaVuSans.ttf"
+  font_size: 10
+  line_height: 12
+  title: "BME680 Readings"
+
+data_logging:
+  storage_mode: "sqlite"
+  database:
+    path: "data/sensor_data.db"
+    table_name: "measurements"
+    cleanup_days: 90
+  csv:
+    filename: "measures.csv"
+    flush_immediately: true
+
+telegram:
+  enabled: false
+  # Bot credentials via env vars: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+  # Or create a .env file in the project root
+  rate_limit_seconds: 300
+  quiet_hours:
+    start: 23
+    end: 7
+  alerts:
+    air_quality_poor: true
+    temperature_high: 30.0
+    temperature_low: 15.0
+    humidity_high: 70.0
+    humidity_low: 30.0
+    daily_summary: true
+    daily_summary_hour: 20
+    system_notifications: true
+
+location:
+  enabled: false
+  latitude: 0.0    # Set your latitude (https://www.latlong.net/)
+  longitude: 0.0   # Set your longitude
+  name: "Your City"
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  date_format: "%Y-%m-%d %H:%M:%S"
+  file:
+    enabled: true
+    filename: "logs/sensor.log"
+    max_bytes: 10485760
+    backup_count: 5
+  console:
+    enabled: true
