@@ -52,7 +52,6 @@ class TelegramNotifier(_BaseTelegramNotifier):
         super().__init__(token=token, chat_id=cid)
 
         self.enabled = enabled and bool(token) and bool(cid)
-        self._thread_id = os.environ.get('TELEGRAM_THREAD_ID') or None
         self.rate_limit_seconds = rate_limit_seconds
         self.quiet_hours_start = quiet_hours_start
         self.quiet_hours_end = quiet_hours_end
@@ -183,11 +182,9 @@ class TelegramNotifier(_BaseTelegramNotifier):
                 logger.debug(f"Rate limited: {alert_type.value}")
                 return False
 
-        kwargs = {"disable_notification": disable_notification}
-        if self._thread_id:
-            kwargs["message_thread_id"] = int(self._thread_id)
-
-        success = super().send_message(message, parse_mode=parse_mode, **kwargs)
+        success = super().send_message(
+            message, parse_mode=parse_mode, disable_notification=disable_notification
+        )
 
         if success:
             self._update_rate_limit(alert_type.value)
