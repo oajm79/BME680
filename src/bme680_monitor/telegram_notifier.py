@@ -1,6 +1,7 @@
 """Telegram notification service for BME680 sensor alerts."""
 
 import logging
+import os
 import time
 from typing import Optional, Dict, Any, List
 from enum import Enum
@@ -62,6 +63,7 @@ class TelegramNotifier:
         """
         self.bot_token = bot_token
         self.chat_id = chat_id
+        self.thread_id = os.environ.get('TELEGRAM_THREAD_ID') or None
         self.enabled = enabled and bot_token and chat_id
         self.rate_limit_seconds = rate_limit_seconds
         self.quiet_hours_start = quiet_hours_start
@@ -278,6 +280,8 @@ class TelegramNotifier:
             "parse_mode": parse_mode,
             "disable_notification": disable_notification
         }
+        if self.thread_id:
+            data["message_thread_id"] = int(self.thread_id)
 
         success = self._send_request("sendMessage", data)
 
