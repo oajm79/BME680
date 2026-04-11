@@ -3,8 +3,8 @@
 import logging
 import time
 from typing import Optional, Dict, Any
-import urllib.request
-import json
+
+from shared_services.http import get_json
 
 logger = logging.getLogger(__name__)
 
@@ -104,33 +104,6 @@ class WeatherService:
         """Get weather description from WMO code."""
         return WEATHER_CODES.get(code, "Unknown")
 
-    def _send_request(self, url: str) -> Optional[Dict[str, Any]]:
-        """
-        Send HTTP request to API.
-
-        Args:
-            url: Full URL to request
-
-        Returns:
-            JSON response as dict, or None on error
-        """
-        try:
-            request = urllib.request.Request(
-                url,
-                headers={"User-Agent": "BME680-Monitor/2.2.0"}
-            )
-            with urllib.request.urlopen(request, timeout=10) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            logger.error(f"Weather API HTTP error: {e.code} - {e.reason}")
-            return None
-        except urllib.error.URLError as e:
-            logger.error(f"Weather API URL error: {e.reason}")
-            return None
-        except Exception as e:
-            logger.error(f"Weather API error: {e}")
-            return None
-
     def _fetch_weather(self) -> Optional[Dict[str, Any]]:
         """Fetch current weather from Open-Meteo."""
         url = (
@@ -139,7 +112,11 @@ class WeatherService:
             f"&current=temperature_2m,relative_humidity_2m,surface_pressure,weather_code"
             f"&timezone=auto"
         )
-        return self._send_request(url)
+        try:
+            return get_json(url, timeout=10)
+        except Exception as e:
+            logger.error(f"Weather API error: {e}")
+            return None
 
     def _fetch_air_quality(self) -> Optional[Dict[str, Any]]:
         """Fetch air quality data from Open-Meteo."""
@@ -149,7 +126,11 @@ class WeatherService:
             f"&current=us_aqi,pm2_5,pm10"
             f"&timezone=auto"
         )
-        return self._send_request(url)
+        try:
+            return get_json(url, timeout=10)
+        except Exception as e:
+            logger.error(f"Air quality API error: {e}")
+            return None
 
     def get_current_conditions(self) -> Optional[Dict[str, Any]]:
         """
