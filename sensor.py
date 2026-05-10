@@ -279,6 +279,9 @@ def main():
     log_interval_seconds = LOG_INTERVAL_MINUTES * 60
     last_daily_summary_day = -1
     last_cleanup_day = -1
+    sensor_failure_count = 0
+    sensor_failure_alert_sent = False
+    SENSOR_FAILURE_ALERT_MINUTES = 5
 
     # Main monitoring loop
     try:
@@ -288,8 +291,27 @@ def main():
 
             if sensor_data is None:
                 logger.warning("Failed to read sensor data")
+                sensor_failure_count += 1
+                failure_minutes = (sensor_failure_count * config.sampling_interval) / 60
+                if (telegram.is_enabled() and
+                        not sensor_failure_alert_sent and
+                        failure_minutes >= SENSOR_FAILURE_ALERT_MINUTES):
+                    telegram.send_message(
+                        f"⚠️ BME680 Sensor Error
+"
+                        f"El sensor no responde hace {failure_minutes:.0f} minutos.
+"
+                        f"Error: Remote I/O (I2C sin respuesta)"
+                    )
+                    sensor_failure_alert_sent = True
                 time.sleep(config.sampling_interval)
                 continue
+
+            # Reset sensor failure tracking on successful read
+            if sensor_failure_alert_sent:
+                telegram.send_message("✅ BME680 Sensor recuperado — leyendo datos correctamente")
+                sensor_failure_alert_sent = False
+            sensor_failure_count = 0
 
             # Get comfort interpretations
             comfort_report = comfort_calc.get_comprehensive_report(
