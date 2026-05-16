@@ -297,10 +297,8 @@ def main():
                         not sensor_failure_alert_sent and
                         failure_minutes >= SENSOR_FAILURE_ALERT_MINUTES):
                     telegram.send_message(
-                        f"⚠️ BME680 Sensor Error
-"
-                        f"El sensor no responde hace {failure_minutes:.0f} minutos.
-"
+                        f"⚠️ BME680 Sensor Error\n"
+                        f"El sensor no responde hace {failure_minutes:.0f} minutos.\n"
                         f"Error: Remote I/O (I2C sin respuesta)"
                     )
                     sensor_failure_alert_sent = True
