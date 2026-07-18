@@ -22,7 +22,7 @@ if requirements_file.exists():
 
 setup(
     name="bme680-monitor",
-    version="2.0.0",
+    version="2.2.0",
     author="BME680 Monitor Project",
     author_email="",
     description="Professional air quality monitoring system using BME680 sensor",

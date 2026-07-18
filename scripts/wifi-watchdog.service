@@ -1,0 +1,7 @@
+[Unit]
+Description=WiFi reconnect watchdog (works around NetworkManager no-secrets false positives, see wifi-watchdog.sh)
+After=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /home/oajm/projects/BME680/scripts/wifi-watchdog.sh

@@ -53,5 +53,50 @@ errores "Temporary failure in name resolution" del `weather_service`, a un ritmo
    `scripts/`) cambiado de `After=network.target` a
    `After=network-online.target` + `Wants=network-online.target`.
 
-**Estado:** Aplicado. Pendiente: `systemctl daemon-reload` + reinicio del servicio en
-`oajm-rbpiz2w` para que tome el cambio del unit file.
+**Estado:** Aplicado y desplegado. Ver siguiente issue: `network-online.target` solo
+ayuda al arranque, no explica las caídas de red *durante* la sesión que se investigaron
+después.
+
+---
+
+## WiFi se desconecta a mitad de sesión y no se auto-reconecta (no-secrets)
+
+**Detectado:** 2026-07-18, el equipo dejó de responder por red varias veces en la misma
+tarde mientras `bme680-sensor.service` seguía corriendo y mostrando datos en el OLED
+localmente (el loop principal del sensor no depende de la red).
+
+**Causa raíz:** `journalctl -b -1 -u NetworkManager` mostró, a las 17:04:37:
+
+```
+device (wlan0): state change: config -> failed (reason 'no-secrets')
+```
+
+precedido por varios `auth_failures` en la SSID `707` (WPA2/WPA3 modo mixto). Tras esto,
+NetworkManager **dejó de reintentar por completo** por el resto del boot (18+ minutos sin
+un solo evento de reconexión), pese a tener `connection.autoconnect-retries: 0 (forever)`
+— ese contador no aplica cuando el fallo se clasifica como `no-secrets`, porque
+NetworkManager asume que reintentar con la misma credencial "inválida" no serviría de nada.
+
+La credencial en realidad **no está mal**: al reiniciar el equipo, se reconectó
+instantáneamente con la misma contraseña guardada, sin pedir nada nuevo. Esto indica que
+`no-secrets` fue un falso positivo — probablemente varios timeouts de handshake WPA
+transitorios (interferencia, o particularidades del modo mixto WPA2/WPA3 con el chip
+`brcmfmac` del Zero 2W) que wpa_supplicant interpretó como credencial rechazada.
+
+**Por qué el fix de `network-online.target` no alcanza:** ese target solo se evalúa una
+vez, al arrancar el servicio. No hace nada por una desconexión que ocurre horas después
+con el sistema ya arriba.
+
+**Fix aplicado (2026-07-18):** watchdog liviano que fuerza un reintento de conexión si el
+gateway no responde — no depende de que NetworkManager decida reintentar por sí solo:
+
+- `scripts/wifi-watchdog.sh`: hace ping al gateway; si falla, corre
+  `nmcli connection up netplan-wlan0-707` (usa la credencial ya guardada, que sabemos que
+  funciona).
+- `scripts/wifi-watchdog.service` + `scripts/wifi-watchdog.timer`: lo ejecutan cada 5
+  minutos vía systemd timer.
+
+**Estado:** Aplicado. Con esto, una caída como la del 17:04 se autorepara en máximo ~5
+minutos en vez de requerir un power-cycle manual. No corrige la causa RF de fondo (si las
+`no-secrets` se repiten seguido, vale la pena revisar el AP: modo mixto WPA2/WPA3,
+interferencia en canal 6, o fijar el Zero a una red WPA2-only si el router lo permite).

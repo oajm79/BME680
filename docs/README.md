@@ -334,7 +334,8 @@ Create `/etc/systemd/system/bme680-sensor.service`:
 ```ini
 [Unit]
 Description=BME680 Air Quality Monitor
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple

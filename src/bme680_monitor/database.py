@@ -69,17 +69,6 @@ class DatabaseManager:
                 ON {self.table_name}(timestamp)
             """)
 
-            # Create alerts table for tracking sent notifications
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS alerts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    alert_type TEXT NOT NULL,
-                    message TEXT NOT NULL,
-                    sent_successfully INTEGER DEFAULT 0
-                )
-            """)
-
             self.connection.commit()
             logger.info(f"Database initialized: {self.db_path}")
 
@@ -143,45 +132,6 @@ class DatabaseManager:
 
         except sqlite3.Error as e:
             logger.error(f"Error logging reading to database: {e}")
-            return -1
-
-    def log_alert(
-        self,
-        alert_type: str,
-        message: str,
-        sent_successfully: bool = False
-    ) -> int:
-        """
-        Log an alert to the alerts table.
-
-        Args:
-            alert_type: Type of alert (e.g., "air_quality", "temperature")
-            message: Alert message
-            sent_successfully: Whether the alert was sent successfully
-
-        Returns:
-            The ID of the inserted row
-        """
-        if not self.connection:
-            return -1
-
-        try:
-            cursor = self.connection.cursor()
-            cursor.execute("""
-                INSERT INTO alerts (timestamp, alert_type, message, sent_successfully)
-                VALUES (?, ?, ?, ?)
-            """, (
-                datetime.now().isoformat(),
-                alert_type,
-                message,
-                1 if sent_successfully else 0
-            ))
-
-            self.connection.commit()
-            return cursor.lastrowid
-
-        except sqlite3.Error as e:
-            logger.error(f"Error logging alert: {e}")
             return -1
 
     def get_recent_readings(

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run wifi-watchdog.sh every 5 minutes (self-heals silent WiFi drops, see wifi-watchdog.sh for why)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

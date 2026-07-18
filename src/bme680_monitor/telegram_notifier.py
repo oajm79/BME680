@@ -416,7 +416,7 @@ Humidity has <b>returned to normal</b>
         message += f"\n\n📅 <b>Readings:</b> {stats.get('reading_count', 0)}"
         return self.send_message(message.strip(), AlertType.DAILY_SUMMARY, force=True)
 
-    def send_startup_message(self, version: str = "2.1.0") -> bool:
+    def send_startup_message(self, version: str = "2.2.0") -> bool:
         message = f"""
 🚀 <b>BME680 Monitor Started</b>
 

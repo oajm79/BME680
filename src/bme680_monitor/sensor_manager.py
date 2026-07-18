@@ -47,11 +47,12 @@ class SensorData:
 
     def __repr__(self) -> str:
         """String representation of sensor data."""
+        gas_str = f"{self.gas_resistance:.0f}Ω" if self.gas_resistance else "N/A"
         return (
             f"SensorData(T={self.temperature:.1f}°C, "
             f"H={self.humidity:.1f}%, "
             f"P={self.pressure:.1f}hPa, "
-            f"Gas={self.gas_resistance:.0f if self.gas_resistance else 'N/A'}Ω)"
+            f"Gas={gas_str})"
         )
 
 
@@ -88,7 +89,9 @@ class SensorManager:
             self.sensor = bme680.BME680(self.i2c_address)
             logger.info(f"BME680 sensor detected at address 0x{self.i2c_address:02X}")
 
-        except RuntimeError as e:
+        except (RuntimeError, OSError) as e:
+            # OSError (e.g. "Remote I/O error") is what a missing/disabled I2C
+            # bus actually raises on this hardware; RuntimeError alone missed it.
             logger.error(f"Error initializing sensor: {e}")
             logger.error("Ensure SDA and SCL connections are correct")
             logger.error("and that I2C is enabled (sudo raspi-config -> Interface Options -> I2C)")

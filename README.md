@@ -384,4 +384,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Version**: 2.0.0 | **Python**: 3.7+ | **Platform**: Linux (Raspberry Pi)
+**Version**: 2.2.0 | **Python**: 3.7+ | **Platform**: Linux (Raspberry Pi)

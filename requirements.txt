@@ -2,8 +2,9 @@
 # Core sensor library
 bme680==1.1.1
 
-# Shared services — install from local repo:
-# pip install -e /home/oajm/projects/shared-services-lib/
+# Shared services (Telegram/HTTP helpers) — editable install from local repo,
+# required for telegram_notifier.py and weather_service.py to import at all
+-e /home/oajm/projects/shared-services-lib
 requests>=2.28.0
 
 # OLED Display libraries

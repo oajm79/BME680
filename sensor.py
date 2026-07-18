@@ -197,7 +197,9 @@ def main():
             gas_heater_temperature=config.gas_heater_temperature,
             gas_heater_duration=config.gas_heater_duration
         )
-    except RuntimeError:
+    except (RuntimeError, OSError):
+        # OSError covers missing/disabled I2C bus (e.g. "Remote I/O error"),
+        # which SensorManager can raise but isn't a RuntimeError.
         logger.error("Failed to initialize sensor. Exiting.")
         if telegram.is_enabled() and config.telegram_system_notifications:
             telegram.send_shutdown_message("Sensor initialization failed")
