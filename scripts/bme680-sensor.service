@@ -1,7 +1,8 @@
 [Unit]
 Description=BME680 Air Quality Monitor
 Documentation=https://github.com/yourusername/BME680
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple

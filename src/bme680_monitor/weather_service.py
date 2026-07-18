@@ -62,6 +62,7 @@ class WeatherService:
     API_BASE = "https://api.open-meteo.com/v1"
     AQI_API_BASE = "https://air-quality-api.open-meteo.com/v1"
     CACHE_DURATION = 600  # 10 minutes
+    FAILURE_BACKOFF = 60  # seconds to wait before retrying after a failed fetch
 
     def __init__(
         self,
@@ -87,6 +88,7 @@ class WeatherService:
         # Cache for API responses
         self._cache: Optional[Dict[str, Any]] = None
         self._cache_time: float = 0
+        self._last_failure_time: Optional[float] = None
 
         if self.enabled:
             logger.info(f"Weather service enabled for {location_name} ({latitude}, {longitude})")
@@ -162,13 +164,24 @@ class WeatherService:
             logger.debug("Using cached weather data")
             return self._cache
 
+        # Back off after a recent failure instead of retrying every call
+        if (
+            self._last_failure_time is not None
+            and (current_time - self._last_failure_time) < self.FAILURE_BACKOFF
+        ):
+            logger.debug("Skipping weather fetch, recent failure still in backoff window")
+            return self._cache
+
         # Fetch fresh data
         weather_data = self._fetch_weather()
         air_quality_data = self._fetch_air_quality()
 
         if not weather_data:
             logger.warning("Failed to fetch weather data")
+            self._last_failure_time = current_time
             return self._cache  # Return stale cache if available
+
+        self._last_failure_time = None
 
         result = {
             "location_name": self.location_name,

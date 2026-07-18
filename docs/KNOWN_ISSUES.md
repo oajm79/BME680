@@ -32,17 +32,26 @@ errores "Temporary failure in name resolution" del `weather_service`, a un ritmo
 - El servicio systemd `bme680-sensor.service` arranca con `After=network.target`,
   que no garantiza que la red/DNS ya estén listos (a diferencia de
   `network-online.target`). Esto explicaría un fallo al boot, pero no 9 horas seguidas.
-- El journal del sistema (kernel/NetworkManager) de ese boot específico se perdió, así
-  que no se pudo confirmar si hubo una caída de WiFi prolongada esa madrugada.
+- El journal del sistema (kernel/NetworkManager) de ese boot específico se perdió: el
+  boot en cuestión no tenía journal persistente (`/var/log/journal` recién se creó el
+  2026-07-18 a las 14:42) y el propio flood de ~112k líneas de log del bug de arriba
+  saturó el ring buffer volátil de `/run` (84MB de tmpfs), expulsando los mensajes de
+  arranque de kernel/NetworkManager antes de que hubiera almacenamiento persistente.
+  El equipo tampoco tiene RTC (`/dev/rtc*` no existe), así que sin DNS tampoco pudo
+  sincronizar NTP durante esas 9 horas — coherente con una caída de red sostenida y
+  no solo una asociación WiFi lenta al boot.
 - Es posible que `transmission-daemon` (retirado del equipo el mismo día por otras
   razones) haya contribuido saturando la misma antena WiFi que usa este servicio.
 
-**Fix propuesto (pendiente de aplicar):**
+**Fix aplicado (2026-07-18):**
 
-1. Agregar backoff/caché negativo en `WeatherService`: cachear también los fallos por
-   un período corto (ej. 60s) en vez de reintentar en cada sampling_interval.
-2. Cambiar en `bme680-sensor.service`:
-   `After=network.target` → `After=network-online.target` + agregar
-   `Wants=network-online.target`, para esperar a que la red esté realmente lista.
+1. `WeatherService` ahora registra `_last_failure_time` y espera `FAILURE_BACKOFF = 60`
+   segundos antes de reintentar tras un fallo, en vez de reintentar en cada
+   `sampling_interval`. Cubierto por `tests/test_weather_service.py`
+   (`test_does_not_retry_immediately_after_failed_fetch`).
+2. `bme680-sensor.service` (unit real en `/etc/systemd/system/` y el template en
+   `scripts/`) cambiado de `After=network.target` a
+   `After=network-online.target` + `Wants=network-online.target`.
 
-**Estado:** Sin aplicar. Documentado para revisar después.
+**Estado:** Aplicado. Pendiente: `systemctl daemon-reload` + reinicio del servicio en
+`oajm-rbpiz2w` para que tome el cambio del unit file.
