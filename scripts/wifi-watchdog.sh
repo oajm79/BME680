@@ -16,15 +16,31 @@
 # This script forces a reconnect attempt if the gateway is unreachable.
 # It's idempotent and cheap enough to run every few minutes via the
 # companion wifi-watchdog.timer.
+#
+# 2026-07-26: a full connection failure (no default route at all --
+# the exact 'no-secrets' scenario above) hit the early "no gateway"
+# exit and skipped reconnecting entirely. That's the case that most
+# needs `nmcli connection up`, not a reason to no-op -- confirmed via
+# journalctl: on 2026-07-26 this fired twice while wlan0 had no route,
+# logged "skipping check" both times, and never attempted a reconnect
+# before the box became unresponsive and hard-reset via the systemd
+# watchdog a few minutes later.
 
 set -euo pipefail
 
-GATEWAY="$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
 CONNECTION="netplan-wlan0-707"
 LOG_TAG="wifi-watchdog"
 
+reconnect() {
+    logger -t "$LOG_TAG" "$1"
+    nmcli connection up "$CONNECTION" >/tmp/wifi-watchdog-last.log 2>&1 || \
+        logger -t "$LOG_TAG" "Reconnect attempt failed, see /tmp/wifi-watchdog-last.log"
+}
+
+GATEWAY="$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
+
 if [ -z "$GATEWAY" ]; then
-    logger -t "$LOG_TAG" "No default gateway configured, skipping check"
+    reconnect "No default route — forcing reconnect of $CONNECTION"
     exit 0
 fi
 
@@ -32,6 +48,4 @@ if ping -c 2 -W 3 "$GATEWAY" >/dev/null 2>&1; then
     exit 0
 fi
 
-logger -t "$LOG_TAG" "Gateway $GATEWAY unreachable, forcing reconnect of $CONNECTION"
-nmcli connection up "$CONNECTION" >/tmp/wifi-watchdog-last.log 2>&1 || \
-    logger -t "$LOG_TAG" "Reconnect attempt failed, see /tmp/wifi-watchdog-last.log"
+reconnect "Gateway $GATEWAY unreachable, forcing reconnect of $CONNECTION"
