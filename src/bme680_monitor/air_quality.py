@@ -221,12 +221,12 @@ class AirQualityCalculator:
                 return (AirQualityLevel.CALIBRATING, "Gas Heating")
 
         # Burn-in phase
-        if elapsed_time < self.burn_in_duration:
+        if self.gas_baseline is None and elapsed_time < self.burn_in_duration:
             remaining = int(self.burn_in_duration - elapsed_time)
             return (AirQualityLevel.CALIBRATING, f"Burn-in ({remaining}s)")
 
         # Baseline sampling phase
-        if elapsed_time < self.burn_in_duration + self.baseline_sampling_duration:
+        if self.gas_baseline is None and elapsed_time < self.burn_in_duration + self.baseline_sampling_duration:
             self.baseline_gas_readings.append(gas_resistance)
             samples = len(self.baseline_gas_readings)
             return (AirQualityLevel.CALIBRATING, f"Baseline ({samples})")

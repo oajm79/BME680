@@ -1,23 +1,23 @@
 # BME680 Sensor Monitoring Requirements
 # Core sensor library
-bme680==1.1.1
+bme680>=2.0.0
 
 # Shared services (Telegram/HTTP helpers) — editable install from local repo,
 # required for telegram_notifier.py and weather_service.py to import at all
 -e /home/oajm/projects/shared-services-lib
-requests>=2.28.0
+requests>=2.34.2
 
 # OLED Display libraries
-luma.oled==3.13.0
-luma.core==2.4.2
-Pillow==10.4.0
+luma.oled>=3.16.0
+luma.core>=2.6.0
+Pillow>=12.3.0
 
 # Configuration management
-PyYAML==6.0.1
+PyYAML>=6.0.3
 
 # Testing (optional, for development)
-pytest==8.3.3
-pytest-cov==5.0.0
+pytest>=9.1.1
+pytest-cov>=7.1.0
 
 # Typing support
-typing-extensions==4.12.2
+typing-extensions>=4.16.0
