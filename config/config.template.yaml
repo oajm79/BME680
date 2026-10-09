@@ -48,6 +48,9 @@ telegram:
   enabled: false
   # Bot credentials via env vars: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
   # Or create a .env file in the project root
+  use_openclaw: true
+  openclaw_account: "infra"
+  message_thread_id: null
   rate_limit_seconds: 300
   quiet_hours:
     start: 23

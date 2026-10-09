@@ -31,6 +31,9 @@ def main():
     telegram = TelegramNotifier(
         bot_token=bot_token,
         chat_id=chat_id,
+        thread_id=config.telegram_message_thread_id,
+        use_openclaw=config.telegram_use_openclaw,
+        openclaw_account=config.telegram_openclaw_account,
         enabled=True  # Force enabled for test
     )
 

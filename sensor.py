@@ -179,6 +179,9 @@ def main():
     telegram = TelegramNotifier(
         bot_token=config.telegram_bot_token,
         chat_id=config.telegram_chat_id,
+        thread_id=config.telegram_message_thread_id,
+        use_openclaw=config.telegram_use_openclaw,
+        openclaw_account=config.telegram_openclaw_account,
         enabled=config.telegram_enabled,
         rate_limit_seconds=config.telegram_rate_limit,
         quiet_hours_start=config.telegram_quiet_hours_start,

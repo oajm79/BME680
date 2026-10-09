@@ -97,6 +97,36 @@ class TestConfig:
         # Logging properties
         assert config.log_level == 'INFO'
 
+        # Telegram defaults
+        assert config.telegram_use_openclaw is True
+        assert config.telegram_openclaw_account == 'infra'
+        assert config.telegram_message_thread_id is None
+
+    def test_telegram_openclaw_custom_config(self):
+        """Test custom Telegram OpenClaw properties."""
+        import tempfile
+        import os
+        custom_data = {
+            'telegram': {
+                'enabled': True,
+                'use_openclaw': False,
+                'openclaw_account': 'alerts',
+                'message_thread_id': '9999'
+            }
+        }
+        fd, path = tempfile.mkstemp(suffix='.yaml')
+        try:
+            with open(path, 'w') as f:
+                yaml.dump(custom_data, f)
+            config = Config(path)
+            assert config.telegram_enabled is True
+            assert config.telegram_use_openclaw is False
+            assert config.telegram_openclaw_account == 'alerts'
+            assert config.telegram_message_thread_id == '9999'
+        finally:
+            os.close(fd)
+            os.remove(path)
+
     def test_missing_config_file(self):
         """Test error when config file doesn't exist."""
         with pytest.raises(FileNotFoundError):

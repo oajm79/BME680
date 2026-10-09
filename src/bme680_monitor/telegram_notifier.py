@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any
 from enum import Enum
 
 from shared_services.telegram import TelegramNotifier as _BaseTelegramNotifier
+from shared_services.openclaw import OpenClawClient
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,9 @@ class TelegramNotifier(_BaseTelegramNotifier):
         self,
         bot_token: Optional[str] = None,
         chat_id: Optional[str] = None,
+        thread_id: Optional[str] = None,
+        use_openclaw: bool = True,
+        openclaw_account: str = "infra",
         enabled: bool = True,
         rate_limit_seconds: int = 300,
         quiet_hours_start: Optional[int] = None,
@@ -48,14 +52,27 @@ class TelegramNotifier(_BaseTelegramNotifier):
     ):
         token = bot_token or os.environ.get('TELEGRAM_BOT_TOKEN', '')
         cid = chat_id or os.environ.get('TELEGRAM_CHAT_ID', '')
+        tid = thread_id or os.environ.get('TELEGRAM_THREAD_ID')
 
-        super().__init__(token=token, chat_id=cid)
+        super().__init__(token=token, chat_id=cid, thread_id=str(tid) if tid else None)
 
         self.enabled = enabled and bool(token) and bool(cid)
         self.rate_limit_seconds = rate_limit_seconds
         self.quiet_hours_start = quiet_hours_start
         self.quiet_hours_end = quiet_hours_end
         self.confirmation_readings = confirmation_readings
+
+        self.use_openclaw = use_openclaw
+        self._openclaw = (
+            OpenClawClient(
+                target=self.chat_id,
+                thread_id=self.thread_id,
+                channel="telegram",
+                account=openclaw_account,
+            )
+            if self.use_openclaw and self.chat_id
+            else None
+        )
 
         self._last_alerts: Dict[str, float] = {}
         self._alert_states: Dict[str, bool] = {
@@ -182,15 +199,31 @@ class TelegramNotifier(_BaseTelegramNotifier):
                 logger.debug(f"Rate limited: {alert_type.value}")
                 return False
 
-        success = super().send_message(
-            message, parse_mode=parse_mode, disable_notification=disable_notification
-        )
+        success = False
+        if getattr(self, 'use_openclaw', True) and self._openclaw:
+            try:
+                success = bool(self._openclaw.send_message(text=message))
+                if success:
+                    logger.info(f"Telegram notification sent via OpenClaw: {alert_type.value}")
+            except Exception as exc:
+                logger.warning(f"OpenClaw send failed with exception: {exc}")
+                success = False
+
+        if not success:
+            if getattr(self, 'use_openclaw', True) and self._openclaw:
+                logger.warning(
+                    f"OpenClaw send failed for {alert_type.value}; falling back to direct Telegram HTTP"
+                )
+            success = super().send_message(
+                message, parse_mode=parse_mode, disable_notification=disable_notification
+            )
+            if success:
+                logger.info(f"Telegram notification sent via direct HTTP: {alert_type.value}")
+            else:
+                logger.error(f"Failed to send Telegram notification: {alert_type.value}")
 
         if success:
             self._update_rate_limit(alert_type.value)
-            logger.info(f"Telegram notification sent: {alert_type.value}")
-        else:
-            logger.error(f"Failed to send Telegram notification: {alert_type.value}")
 
         return success
 

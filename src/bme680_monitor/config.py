@@ -249,6 +249,22 @@ class Config:
         return self.get('telegram.enabled', False)
 
     @property
+    def telegram_use_openclaw(self) -> bool:
+        """Check if OpenClaw should be used as primary delivery transport."""
+        return self.get('telegram.use_openclaw', True)
+
+    @property
+    def telegram_openclaw_account(self) -> str:
+        """Get OpenClaw account configured for alerts."""
+        return self.get('telegram.openclaw_account', 'infra')
+
+    @property
+    def telegram_message_thread_id(self) -> str | None:
+        """Get message thread ID for supergroup topics."""
+        val = self.get('telegram.message_thread_id', None) or os.environ.get('TELEGRAM_THREAD_ID')
+        return str(val) if val is not None else None
+
+    @property
     def telegram_bot_token(self) -> str:
         """Get Telegram bot token from environment variable."""
         return os.environ.get('TELEGRAM_BOT_TOKEN', '')
