@@ -85,6 +85,8 @@ def setup_logging(config: Config) -> None:
     logging.captureWarnings(True)
     warnings.simplefilter("always", DeprecationWarning)
     warnings.simplefilter("always", FutureWarning)
+    # Filter known third-party deprecation until upstream luma.oled adopts get_flattened_data
+    warnings.filterwarnings("ignore", category=DeprecationWarning, message=r".*getdata is deprecated.*")
     logging.getLogger("py.warnings").setLevel(logging.WARNING)
 
 
