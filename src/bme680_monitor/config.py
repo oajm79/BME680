@@ -338,7 +338,7 @@ class Config:
     @property
     def log_format(self) -> str:
         """Get logging format."""
-        return self.get('logging.format', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        return self.get('logging.format', '%(asctime)s | %(levelname)-8s | %(name)s | %(message)s')
 
     @property
     def log_date_format(self) -> str:

@@ -80,6 +80,13 @@ def setup_logging(config: Config) -> None:
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)
 
+    # Capture deprecation and future warnings into py.warnings logger
+    import warnings
+    logging.captureWarnings(True)
+    warnings.simplefilter("always", DeprecationWarning)
+    warnings.simplefilter("always", FutureWarning)
+    logging.getLogger("py.warnings").setLevel(logging.WARNING)
+
 
 def print_calibration_tips(config: Config) -> None:
     """Print calibration tips for the user."""
