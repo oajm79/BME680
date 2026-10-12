@@ -42,52 +42,22 @@ from bme680_monitor import (
 )
 
 
+from shared_services.logging_setup import setup_logging as _shared_setup_logging
+
+
 def setup_logging(config: Config) -> None:
-    """
-    Setup logging configuration.
-
-    Args:
-        config: Configuration object
-    """
-    # Create logs directory if needed
-    log_dir = Path(config.log_filename).parent
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create logger
-    root_logger = logging.getLogger()
-    root_logger.setLevel(getattr(logging, config.log_level))
-
-    # Create formatter
-    formatter = logging.Formatter(
-        config.log_format,
-        datefmt=config.log_date_format
+    """Setup logging configuration using shared_services with daily 15-day rotation."""
+    log_file = Path(config.log_filename) if config.log_file_enabled else None
+    file_level = getattr(logging, config.log_level, logging.INFO)
+    _shared_setup_logging(
+        log_file=log_file,
+        file_level=file_level,
+        backup_count=14,  # 14 rotated days + 1 active = 15 days total
+        capture_warnings=True,
     )
-
-    # Console handler
-    if config.log_console_enabled:
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        root_logger.addHandler(console_handler)
-
-    # File handler with rotation
-    if config.log_file_enabled:
-        from logging.handlers import RotatingFileHandler
-        file_handler = RotatingFileHandler(
-            config.log_filename,
-            maxBytes=config.log_max_bytes,
-            backupCount=config.log_backup_count
-        )
-        file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
-
-    # Capture deprecation and future warnings into py.warnings logger
-    import warnings
-    logging.captureWarnings(True)
-    warnings.simplefilter("always", DeprecationWarning)
-    warnings.simplefilter("always", FutureWarning)
     # Filter known third-party deprecation until upstream luma.oled adopts get_flattened_data
+    import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning, message=r".*getdata is deprecated.*")
-    logging.getLogger("py.warnings").setLevel(logging.WARNING)
 
 
 def print_calibration_tips(config: Config) -> None:
