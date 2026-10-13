@@ -5,7 +5,7 @@ bme680>=2.0.0
 # Shared services (Telegram/HTTP helpers) — editable install from local repo,
 # required for telegram_notifier.py and weather_service.py to import at all
 -e /home/oajm/projects/shared-services-lib
-requests>=2.34.2
+
 
 # OLED Display libraries
 luma.oled>=3.16.0
