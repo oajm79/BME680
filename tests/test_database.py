@@ -57,3 +57,44 @@ class TestDatabaseManagerRoundTrip:
 
         assert deleted == 0
         assert len(db.get_recent_readings(limit=10)) == 1
+
+    def test_utc_timestamp_and_recent_hour_filtering(self, db):
+        """Verify fix for BME680#7: readings are stored in UTC and 1-hour filter works accurately."""
+        row_id = db.log_reading(temperature=22.0, humidity=42.0, pressure=1013.25)
+        assert row_id > 0
+
+        readings = db.get_recent_readings(limit=10)
+        assert len(readings) == 1
+        ts = readings[0]["timestamp"]
+        # Format must be SQLite standard 'YYYY-MM-DD HH:MM:SS' without 'T'
+        assert "T" not in ts
+        assert len(ts) == 19
+
+        # Filter for last 1 hour must include this fresh reading
+        recent_1h = db.get_recent_readings(hours=1)
+        assert len(recent_1h) == 1
+        assert recent_1h[0]["temperature_c"] == 22.0
+
+        # Stats for last 1 hour must reflect the reading
+        stats_1h = db.get_statistics(hours=1)
+        assert stats_1h["reading_count"] == 1
+        assert stats_1h["temp_avg"] == 22.0
+
+    def test_legacy_iso_timestamp_normalization(self, db):
+        """Verify that legacy ISO timestamps with 'T' are normalized upon initialization."""
+        cursor = db.connection.cursor()
+        cursor.execute(f"""
+            INSERT INTO {db.table_name} (
+                timestamp, temperature_c, humidity_rh, pressure_hpa
+            ) VALUES ('2026-01-01T12:00:00', 19.5, 45.0, 1015.0)
+        """)
+        db.connection.commit()
+
+        # Re-initialize database to trigger migration
+        db._initialize_database()
+
+        cursor.execute(f"SELECT timestamp FROM {db.table_name} WHERE temperature_c = 19.5")
+        migrated_ts = cursor.fetchone()[0]
+        assert migrated_ts == "2026-01-01 12:00:00"
+        assert "T" not in migrated_ts
+

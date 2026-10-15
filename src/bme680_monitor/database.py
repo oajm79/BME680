@@ -2,9 +2,9 @@
 
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,13 @@ class DatabaseManager:
                 ON {self.table_name}(timestamp)
             """)
 
+            # Normalize legacy timestamps with 'T' separator to standard UTC format
+            cursor.execute(f"""
+                UPDATE {self.table_name}
+                SET timestamp = datetime(replace(timestamp, 'T', ' '))
+                WHERE timestamp LIKE '%T%'
+            """)
+
             self.connection.commit()
             logger.info(f"Database initialized: {self.db_path}")
 
@@ -85,7 +92,8 @@ class DatabaseManager:
         air_quality_index: Optional[int] = None,
         air_quality_label: Optional[str] = None,
         comfort_level: Optional[int] = None,
-        comfort_label: Optional[str] = None
+        comfort_label: Optional[str] = None,
+        timestamp: Optional[Union[str, datetime]] = None,
     ) -> int:
         """
         Log a sensor reading to the database.
@@ -99,6 +107,7 @@ class DatabaseManager:
             air_quality_label: Air quality label
             comfort_level: Comfort level (0-4)
             comfort_label: Comfort label
+            timestamp: Optional reading timestamp (UTC). Defaults to current UTC time.
 
         Returns:
             The ID of the inserted row
@@ -106,6 +115,16 @@ class DatabaseManager:
         if not self.connection:
             logger.error("Database not connected")
             return -1
+
+        if timestamp is None:
+            ts_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        elif isinstance(timestamp, datetime):
+            if timestamp.tzinfo is not None:
+                ts_str = timestamp.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                ts_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            ts_str = str(timestamp).replace("T", " ")
 
         try:
             cursor = self.connection.cursor()
@@ -116,7 +135,7 @@ class DatabaseManager:
                     comfort_level, comfort_label
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                datetime.now().isoformat(),
+                ts_str,
                 temperature,
                 humidity,
                 pressure,
