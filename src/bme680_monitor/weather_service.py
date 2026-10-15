@@ -63,6 +63,9 @@ class WeatherService:
     AQI_API_BASE = "https://air-quality-api.open-meteo.com/v1"
     CACHE_DURATION = 600  # 10 minutes
     FAILURE_BACKOFF = 60  # seconds to wait before retrying after a failed fetch
+    DEFAULT_TIMEOUT = 15  # seconds
+    MAX_RETRIES = 2
+    RETRY_DELAY = 1.5  # seconds
 
     def __init__(
         self,
@@ -106,6 +109,29 @@ class WeatherService:
         """Get weather description from WMO code."""
         return WEATHER_CODES.get(code, "Unknown")
 
+    def _fetch_api(self, url: str, name: str) -> Optional[Dict[str, Any]]:
+        """Fetch JSON from an external API with retries and backoff."""
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                data = get_json(url, timeout=self.DEFAULT_TIMEOUT)
+                if isinstance(data, dict):
+                    return data
+                logger.warning(f"{name} API returned non-dict response (type: {type(data).__name__})")
+            except Exception as e:
+                if attempt < self.MAX_RETRIES:
+                    logger.debug(
+                        f"{name} API attempt {attempt}/{self.MAX_RETRIES} failed ({e}), "
+                        f"retrying in {self.RETRY_DELAY}s..."
+                    )
+                    time.sleep(self.RETRY_DELAY)
+                else:
+                    logger.warning(f"{name} API temporary failure: {e}")
+                continue
+
+            if attempt < self.MAX_RETRIES:
+                time.sleep(self.RETRY_DELAY)
+        return None
+
     def _fetch_weather(self) -> Optional[Dict[str, Any]]:
         """Fetch current weather from Open-Meteo."""
         url = (
@@ -114,11 +140,7 @@ class WeatherService:
             f"&current=temperature_2m,relative_humidity_2m,surface_pressure,weather_code"
             f"&timezone=auto"
         )
-        try:
-            return get_json(url, timeout=10)
-        except Exception as e:
-            logger.warning(f"Weather API temporary failure: {e}")
-            return None
+        return self._fetch_api(url, "Weather")
 
     def _fetch_air_quality(self) -> Optional[Dict[str, Any]]:
         """Fetch air quality data from Open-Meteo."""
@@ -128,11 +150,7 @@ class WeatherService:
             f"&current=us_aqi,pm2_5,pm10"
             f"&timezone=auto"
         )
-        try:
-            return get_json(url, timeout=10)
-        except Exception as e:
-            logger.warning(f"Air quality API temporary failure: {e}")
-            return None
+        return self._fetch_api(url, "Air quality")
 
     def get_current_conditions(self) -> Optional[Dict[str, Any]]:
         """

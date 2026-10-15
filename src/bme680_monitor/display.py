@@ -6,10 +6,33 @@ from typing import Optional
 from luma.core.interface.serial import i2c
 from luma.core.render import canvas
 from luma.oled.device import ssd1306
-from PIL import ImageFont
+from PIL import Image, ImageFont
 
 
 logger = logging.getLogger(__name__)
+
+
+def _apply_pillow_compatibility_shim() -> None:
+    """
+    Compatibility shim for Pillow >= 11 / 14 deprecation.
+
+    luma.oled calls Image.Image.getdata(), which Pillow deprecated in favor of
+    get_flattened_data() and will remove in Pillow 14.
+    If get_flattened_data is available, alias Image.Image.getdata to it transparently.
+    Logs a single startup notice at INFO to preserve deprecation tracking without
+    flooding logs every second on the Pi Zero 2W SD card.
+    """
+    try:
+        if hasattr(Image.Image, "get_flattened_data") and not getattr(Image.Image, "_bme680_shim_applied", False):
+            Image.Image.getdata = lambda self, band=None: self.get_flattened_data(band)
+            Image.Image._bme680_shim_applied = True
+            logger.info("OLED display: applied Pillow Image.getdata compatibility shim (using get_flattened_data)")
+    except Exception as e:
+        logger.debug(f"Pillow compatibility shim check skipped: {e}")
+
+
+# Apply on import
+_apply_pillow_compatibility_shim()
 
 
 class OLEDDisplay:
@@ -61,6 +84,8 @@ class OLEDDisplay:
         self._show_comfort_view = False
         self._normal_view_duration = 5.0  # Show normal view for 5 seconds
         self._comfort_view_duration = 3.0  # Show comfort view for 3 seconds
+
+        _apply_pillow_compatibility_shim()
 
         if self.enabled:
             self._initialize()

@@ -100,3 +100,55 @@ gateway no responde — no depende de que NetworkManager decida reintentar por s
 minutos en vez de requerir un power-cycle manual. No corrige la causa RF de fondo (si las
 `no-secrets` se repiten seguido, vale la pena revisar el AP: modo mixto WPA2/WPA3,
 interferencia en canal 6, o fijar el Zero a una red WPA2-only si el router lo permite).
+
+---
+
+## luma.oled: DeprecationWarning por cambios en API de Pillow (`Image.getdata`)
+
+**Detectado:** 2026-10-12 (GitHub Issue #4).
+
+**Síntoma:** Al actualizar Pillow a 12+, el método `Image.Image.getdata()` quedó deprecado
+en favor de `get_flattened_data()`, programado para eliminación definitiva en Pillow 14.
+Como `luma.oled` invoca `getdata()` en cada actualización de pantalla (~1Hz), se generaban
+miles de líneas de warning por hora, provocando escrituras continuas e innecesarias en la
+tarjeta micro-SD del Pi Zero 2W.
+
+**Causa raíz:** `luma.oled` (versión instalada upstream) no ha migrado internamente a
+`get_flattened_data()`.
+
+**Mitigación y solución aplicada (2026-10-15):**
+1. **Filtro de advertencias (sensor.py):** Se configuró
+   `warnings.filterwarnings("ignore", category=DeprecationWarning, message=r".*getdata is deprecated.*")`
+   para detener de inmediato el flood hacia el log y proteger la SD.
+2. **Compatibility shim (display.py):** Función `_apply_pillow_compatibility_shim()` que
+   detecta la presencia de `get_flattened_data` en Pillow y transparenta `Image.Image.getdata`
+   hacia dicho método, emitiendo una única línea informativa a nivel `INFO` al inicio del
+   servicio. Esto evita advertencias a nivel intérprete, mantiene la visibilidad operativa
+   y previene roturas futuras en Pillow 14 si upstream no actualiza a tiempo.
+
+**Estado:** Mitigado y cubierto con tests unitarios en `tests/test_display.py`.
+
+---
+
+## Weather service: Fallos intermitentes de APIs externas (503 / timeouts / non-dict)
+
+**Detectado:** 2026-10-12 (GitHub Issue #5).
+
+**Síntoma:** Fallos intermitentes al consultar Open-Meteo (`api.open-meteo.com` y
+`air-quality-api.open-meteo.com`), generando errores como `HTTP Error 503: Service Unavailable`,
+timeouts de socket/SSL y errores de parseo JSON (`Expecting value: line 1 column 1`).
+
+**Causa raíz:** Caídas temporales de los servidores upstream o congestión en la interfaz WiFi
+del Pi Zero 2W que devolvían páginas HTML de balanceadores de carga en lugar de JSON.
+
+**Solución aplicada (2026-10-15):**
+1. **Loop de reintentos con backoff:** `_fetch_api` en `weather_service.py` reintenta hasta
+   `MAX_RETRIES = 2` veces con una pausa de `RETRY_DELAY = 1.5s` antes de considerar el fetch fallido.
+2. **Validación estricta de respuesta:** Verifica que la respuesta parseada sea un `dict`
+   válido antes de procesarla.
+3. **Timeout ampliado:** Se ajustó el timeout base a 15 segundos para absorber latencias de
+   la red inalámbrica en hardware modesto.
+4. **Negative caching:** Se mantiene el backoff general de `FAILURE_BACKOFF = 60s` para evitar
+   bombardear la API si el servicio remoto está completamente caído.
+
+**Estado:** Resuelto y probado en `tests/test_weather_service.py`.
