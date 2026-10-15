@@ -117,7 +117,7 @@ class WeatherService:
         try:
             return get_json(url, timeout=10)
         except Exception as e:
-            logger.error(f"Weather API error: {e}")
+            logger.warning(f"Weather API temporary failure: {e}")
             return None
 
     def _fetch_air_quality(self) -> Optional[Dict[str, Any]]:
@@ -131,7 +131,7 @@ class WeatherService:
         try:
             return get_json(url, timeout=10)
         except Exception as e:
-            logger.error(f"Air quality API error: {e}")
+            logger.warning(f"Air quality API temporary failure: {e}")
             return None
 
     def get_current_conditions(self) -> Optional[Dict[str, Any]]:
