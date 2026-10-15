@@ -34,10 +34,6 @@ def _apply_pillow_compatibility_shim() -> None:
         logger.debug(f"Pillow compatibility shim check skipped: {e}")
 
 
-# Apply on import
-_apply_pillow_compatibility_shim()
-
-
 class OLEDDisplay:
     """Manages OLED display output for sensor readings."""
 
