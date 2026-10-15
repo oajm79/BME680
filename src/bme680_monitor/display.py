@@ -23,10 +23,13 @@ def _apply_pillow_compatibility_shim() -> None:
     flooding logs every second on the Pi Zero 2W SD card.
     """
     try:
-        if hasattr(Image.Image, "get_flattened_data") and not getattr(Image.Image, "_bme680_shim_applied", False):
-            Image.Image.getdata = lambda self, band=None: self.get_flattened_data(band)
-            Image.Image._bme680_shim_applied = True
-            logger.info("OLED display: applied Pillow Image.getdata compatibility shim (using get_flattened_data)")
+        if hasattr(Image.Image, "get_flattened_data"):
+            if not getattr(Image.Image, "_bme680_shim_applied", False):
+                Image.Image.getdata = lambda self, band=None: self.get_flattened_data(band)
+                Image.Image._bme680_shim_applied = True
+            if not getattr(Image.Image, "_bme680_shim_logged", False):
+                logger.info("OLED display: applied Pillow Image.getdata compatibility shim (using get_flattened_data)")
+                Image.Image._bme680_shim_logged = True
     except Exception as e:
         logger.debug(f"Pillow compatibility shim check skipped: {e}")
 
