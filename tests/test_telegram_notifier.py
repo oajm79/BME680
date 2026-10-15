@@ -155,3 +155,15 @@ class TestOpenClawIntegration:
             notifier._openclaw.send_message.assert_called_once_with(text="Test message")
             mock_base_send.assert_called_once_with("Test message", parse_mode="HTML", disable_notification=False)
 
+    def test_alert_state_persistence_across_instances(self, tmp_path):
+        state_file = tmp_path / ".alert_state.json"
+        n1 = TelegramNotifier(enabled=False, confirmation_readings=1, state_file=state_file)
+        # Transition to bad state
+        assert n1._check_state_transition("air_quality_poor", True) == "entered"
+        assert state_file.exists()
+
+        # New instance pointing to same file should load the state and not re-trigger "entered"
+        n2 = TelegramNotifier(enabled=False, confirmation_readings=1, state_file=state_file)
+        assert n2._alert_states["air_quality_poor"] is True
+        assert n2._check_state_transition("air_quality_poor", True) is None
+

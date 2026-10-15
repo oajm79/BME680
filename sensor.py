@@ -164,7 +164,8 @@ def main():
         enabled=config.telegram_enabled,
         rate_limit_seconds=config.telegram_rate_limit,
         quiet_hours_start=config.telegram_quiet_hours_start,
-        quiet_hours_end=config.telegram_quiet_hours_end
+        quiet_hours_end=config.telegram_quiet_hours_end,
+        state_file="data/.alert_state.json",
     )
 
     if telegram.is_enabled():
@@ -267,6 +268,10 @@ def main():
     sensor_failure_alert_sent = False
     SENSOR_FAILURE_ALERT_MINUTES = 5
 
+    db_failure_count = 0
+    db_failure_alert_sent = False
+    DB_FAILURE_ALERT_THRESHOLD = 5
+
     # Main monitoring loop
     try:
         while True:
@@ -364,7 +369,7 @@ def main():
 
             # Log to database or CSV
             if db_manager:
-                db_manager.log_reading(
+                row_id = db_manager.log_reading(
                     temperature=sensor_data.temperature,
                     humidity=sensor_data.humidity,
                     pressure=sensor_data.pressure,
@@ -374,6 +379,23 @@ def main():
                     comfort_level=int(comfort_report['overall_comfort']['level']),
                     comfort_label=comfort_report['overall_comfort']['summary']
                 )
+                if row_id == -1:
+                    db_failure_count += 1
+                    logger.error(f"Database write failure ({db_failure_count} consecutive)")
+                    if (telegram.is_enabled() and
+                            not db_failure_alert_sent and
+                            db_failure_count >= DB_FAILURE_ALERT_THRESHOLD):
+                        telegram.send_message(
+                            f"🚨 BME680 Database Error\n"
+                            f"Fallo de escritura en SQLite ({db_failure_count} fallos consecutivos).\n"
+                            f"Posible tarjeta SD llena, base de datos bloqueada o permisos corruptos."
+                        )
+                        db_failure_alert_sent = True
+                else:
+                    if db_failure_alert_sent:
+                        telegram.send_message("✅ BME680 Database recuperada — escrituras reanudadas correctamente")
+                        db_failure_alert_sent = False
+                    db_failure_count = 0
             elif data_logger:
                 data_logger.log_reading(
                     temperature=sensor_data.temperature,

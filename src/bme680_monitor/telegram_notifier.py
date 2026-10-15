@@ -1,9 +1,9 @@
-"""Telegram notification service for BME680 sensor alerts."""
-
+import json
 import logging
 import os
 import time
-from typing import Optional, Dict, Any
+from pathlib import Path
+from typing import Optional, Dict, Any, Union
 from enum import Enum
 
 from shared_services.telegram import TelegramNotifier as _BaseTelegramNotifier
@@ -49,6 +49,7 @@ class TelegramNotifier(_BaseTelegramNotifier):
         quiet_hours_start: Optional[int] = None,
         quiet_hours_end: Optional[int] = None,
         confirmation_readings: int = 5,
+        state_file: Optional[Union[str, Path]] = None,
     ):
         token = bot_token or os.environ.get('TELEGRAM_BOT_TOKEN', '')
         cid = chat_id or os.environ.get('TELEGRAM_CHAT_ID', '')
@@ -61,6 +62,7 @@ class TelegramNotifier(_BaseTelegramNotifier):
         self.quiet_hours_start = quiet_hours_start
         self.quiet_hours_end = quiet_hours_end
         self.confirmation_readings = confirmation_readings
+        self.state_file = Path(state_file) if state_file else None
 
         self.use_openclaw = use_openclaw
         self._openclaw = (
@@ -85,6 +87,8 @@ class TelegramNotifier(_BaseTelegramNotifier):
         self._pending_state: Dict[str, Optional[bool]] = {}
         self._pending_count: Dict[str, int] = {}
 
+        self._load_alert_state()
+
         if self.enabled:
             logger.info("Telegram notifications enabled")
         else:
@@ -92,6 +96,35 @@ class TelegramNotifier(_BaseTelegramNotifier):
                 logger.info("Telegram notifications disabled (no token/chat_id configured)")
             else:
                 logger.info("Telegram notifications disabled by configuration")
+
+    def _load_alert_state(self) -> None:
+        """Load persisted alert states and last alert timestamps."""
+        if not self.state_file or not self.state_file.exists():
+            return
+        try:
+            with open(self.state_file, "r") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    self._alert_states.update(data.get("alert_states", {}))
+                    self._last_alerts.update(data.get("last_alerts", {}))
+        except Exception as exc:
+            logger.warning("Failed to load alert state from %s: %s", self.state_file, exc)
+
+    def _save_alert_state(self) -> None:
+        """Atomically persist alert states and timestamps."""
+        if not self.state_file:
+            return
+        try:
+            self.state_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.state_file.with_suffix(".json.tmp")
+            with open(tmp, "w") as f:
+                json.dump({
+                    "alert_states": self._alert_states,
+                    "last_alerts": self._last_alerts,
+                }, f)
+            tmp.replace(self.state_file)
+        except Exception as exc:
+            logger.warning("Failed to save alert state to %s: %s", self.state_file, exc)
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -112,6 +145,7 @@ class TelegramNotifier(_BaseTelegramNotifier):
     def _update_rate_limit(self, alert_type: str) -> None:
         """Update last alert time for rate limiting."""
         self._last_alerts[alert_type] = time.time()
+        self._save_alert_state()
 
     def _check_state_transition(self, state_key: str, is_bad: bool) -> Optional[str]:
         """
@@ -143,6 +177,7 @@ class TelegramNotifier(_BaseTelegramNotifier):
             self._alert_states[state_key] = is_bad
             self._pending_state[state_key] = None
             self._pending_count[state_key] = 0
+            self._save_alert_state()
             return "entered" if is_bad else "exited"
 
         return None
