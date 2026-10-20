@@ -9,16 +9,18 @@ Professional air quality monitoring system for Raspberry Pi using the BME680 env
 ## 🌟 Features
 
 - **Real-time Environmental Monitoring** - Temperature, humidity, pressure, and air quality
+- **Dedicated Homelab Sensor Node** - Deployed on Raspberry Pi Zero 2W (`oajm-rbpiz2w`), persisting data to SQLite for `pi-backend` and the public dashboard
 - **Intelligent Calibration** - Automatic burn-in and baseline establishment with persistence
 - **Hybrid Air Quality Algorithm** - Combines absolute and relative thresholds for accurate readings
+- **Weather API Hardening** - Robust retries with exponential backoff for local outdoor reference baseline comparison
 - **Comfort Interpretations** - Human-readable assessments with actionable recommendations
-- **OLED Display Support** - Alternating views with sensor data and comfort emoji
-- **SQLite Data Storage** - Efficient database storage with statistics and auto-cleanup
+- **OLED Display Support** - Alternating views with sensor data and comfort emoji, including compatibility shim for Pillow 10+ / `luma.oled`
+- **SQLite Data Storage** - Efficient database storage with statistics and auto-cleanup (`data/sensor_data.db`)
 - **Telegram Notifications** - Alerts for air quality, temperature, humidity + daily summaries
 - **Optimized Logging** - Reduced log frequency (15 min) while maintaining full data
 - **Configuration Management** - YAML-based configuration without code changes
 - **Professional Logging** - Structured logs with automatic rotation
-- **Service Management** - Systemd integration for auto-start
+- **Service Management** - Systemd integration for auto-start (`bme680-sensor.service`)
 - **Unit Tests** - Comprehensive test coverage
 - **Modular Architecture** - Clean, maintainable codebase
 
