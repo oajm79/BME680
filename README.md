@@ -384,6 +384,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Mobile app
 - [ ] Email/SMS alerts
 
+## 🔒 Homelab Integration & Invariants
+
+- **Homelab Architecture:**
+  - On `oajm-rbpiz2w`, `pi-backend/runner.py` reads `data/sensor_data.db` and pushes `bme680.json` to Hostinger every 60 seconds.
+  - On `oajm-rbpi5`, `pi-backend/services/watchdog.py` monitors the Pi Zero node connectivity and data freshness.
+- **Invariants & Commands:**
+  - Do not alter gas baseline calibration formulas without a prior 20-minute burn-in validation.
+  - Telegram/OpenClaw alerts route through `shared-services-lib`.
+  - Run unit tests via `.venv/bin/pytest tests/` and syntax check via `python3 -m py_compile sensor.py`.
+
 ---
 
 **Version**: 2.2.0 | **Python**: 3.7+ | **Platform**: Linux (Raspberry Pi)
