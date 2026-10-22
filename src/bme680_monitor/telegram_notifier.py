@@ -49,6 +49,7 @@ class TelegramNotifier(_BaseTelegramNotifier):
         quiet_hours_start: Optional[int] = None,
         quiet_hours_end: Optional[int] = None,
         confirmation_readings: int = 5,
+        debounce_seconds: float = 0.0,
         state_file: Optional[Union[str, Path]] = None,
     ):
         token = bot_token or os.environ.get('TELEGRAM_BOT_TOKEN', '')
@@ -62,6 +63,7 @@ class TelegramNotifier(_BaseTelegramNotifier):
         self.quiet_hours_start = quiet_hours_start
         self.quiet_hours_end = quiet_hours_end
         self.confirmation_readings = confirmation_readings
+        self.debounce_seconds = max(0.0, float(debounce_seconds))
         self.state_file = Path(state_file) if state_file else None
 
         self.use_openclaw = use_openclaw
@@ -86,6 +88,7 @@ class TelegramNotifier(_BaseTelegramNotifier):
         }
         self._pending_state: Dict[str, Optional[bool]] = {}
         self._pending_count: Dict[str, int] = {}
+        self._pending_since: Dict[str, Optional[float]] = {}
 
         self._load_alert_state()
 
@@ -151,8 +154,9 @@ class TelegramNotifier(_BaseTelegramNotifier):
         """
         Check if there's a confirmed state transition for alert purposes.
 
-        Requires `confirmation_readings` consecutive readings in the new state
-        before confirming the transition (hysteresis to avoid alert flapping).
+        Requires `confirmation_readings` consecutive readings AND at least
+        `debounce_seconds` elapsed in the new state before confirming the
+        transition (hysteresis + debounce to avoid alert flapping).
 
         Returns:
             "entered" if transitioning to bad state,
@@ -160,23 +164,33 @@ class TelegramNotifier(_BaseTelegramNotifier):
             None if no transition or not yet confirmed
         """
         previous_state = self._alert_states.get(state_key, False)
+        now = time.monotonic()
 
         if is_bad == previous_state:
             self._pending_state[state_key] = None
             self._pending_count[state_key] = 0
+            self._pending_since[state_key] = None
             return None
 
         pending = self._pending_state.get(state_key)
         if pending != is_bad:
             self._pending_state[state_key] = is_bad
             self._pending_count[state_key] = 1
+            self._pending_since[state_key] = now
         else:
             self._pending_count[state_key] = self._pending_count.get(state_key, 0) + 1
+            if self._pending_since.get(state_key) is None:
+                self._pending_since[state_key] = now
 
-        if self._pending_count[state_key] >= self.confirmation_readings:
+        elapsed = now - (self._pending_since.get(state_key) or now)
+        if (
+            self._pending_count[state_key] >= self.confirmation_readings
+            and elapsed >= self.debounce_seconds
+        ):
             self._alert_states[state_key] = is_bad
             self._pending_state[state_key] = None
             self._pending_count[state_key] = 0
+            self._pending_since[state_key] = None
             self._save_alert_state()
             return "entered" if is_bad else "exited"
 

@@ -128,3 +128,27 @@ class TestAirQualityCalculator:
         assert info is not None
         assert info['baseline_ohms'] == 100000.0
         assert info['baseline_kohms'] == 100.0
+
+    def test_hysteresis_prevents_poor_moderate_flapping_at_boundary(self, calculator):
+        """
+        Reproduces issue #10: with baseline ~435 kOhm (0.70 cutoff = 304.5 kOhm),
+        readings oscillating between 300.1 kOhm and 308.8 kOhm (+/-1.5%) must not
+        repeatedly flip between Poor and Moderate.
+        """
+        calculator.gas_baseline = 435000.0
+
+        # Initial dip below 0.70 (300.1 kOhm / 435 kOhm = 0.6899) -> enters POOR
+        idx, label = calculator.update(gas_resistance=300100.0, heat_stable=True)
+        assert idx == AirQualityLevel.POOR
+        assert label == "Poor"
+
+        # Oscillate between 300.1 kOhm and 308.8 kOhm (ratio 0.6899 to 0.7099 < 0.75 exit band)
+        for reading_ohms in [308800.0, 301200.0, 307900.0, 300500.0, 308500.0]:
+            idx, label = calculator.update(gas_resistance=reading_ohms, heat_stable=True)
+            assert idx == AirQualityLevel.POOR
+            assert label == "Poor"
+
+        # Genuine sustained recovery past hysteresis band (330 kOhm / 435 kOhm = 0.7586 >= 0.75)
+        idx, label = calculator.update(gas_resistance=330000.0, heat_stable=True)
+        assert idx == AirQualityLevel.MODERATE
+        assert label == "Moderate"

@@ -43,7 +43,8 @@ class AirQualityCalculator:
         baseline_max_age_hours: int = 24,
         excellent_threshold_abs: int = 150000,
         good_threshold_abs: int = 100000,
-        moderate_threshold_abs: int = 50000
+        moderate_threshold_abs: int = 50000,
+        hysteresis_margin: float = 0.05,
     ):
         """
         Initialize air quality calculator.
@@ -61,6 +62,7 @@ class AirQualityCalculator:
             excellent_threshold_abs: Excellent air threshold in Ohms (absolute)
             good_threshold_abs: Good air threshold in Ohms (absolute)
             moderate_threshold_abs: Moderate air threshold in Ohms (absolute)
+            hysteresis_margin: Relative deadband margin (e.g. 0.05 = 5%) required to exit POOR/GOOD bands
         """
         self.baseline_file = baseline_file
         self.burn_in_duration = burn_in_duration
@@ -76,11 +78,14 @@ class AirQualityCalculator:
         self.excellent_threshold_abs = excellent_threshold_abs
         self.good_threshold_abs = good_threshold_abs
         self.moderate_threshold_abs = moderate_threshold_abs
+        self.hysteresis_margin = max(0.0, float(hysteresis_margin))
 
         self.gas_baseline: Optional[float] = None
         self.time_baseline_established: float = 0.0
         self.current_calibration_start_time: float = time.time()
         self.baseline_gas_readings: List[float] = []
+        self._current_relative_level: Optional[AirQualityLevel] = None
+        self._current_absolute_level: Optional[AirQualityLevel] = None
 
         # Try to load existing baseline
         if self.load_baseline():
@@ -189,6 +194,8 @@ class AirQualityCalculator:
         self.gas_baseline = None
         self.baseline_gas_readings = []
         self.time_baseline_established = 0.0
+        self._current_relative_level = None
+        self._current_absolute_level = None
 
         logger.info("Starting new burn-in and baseline sampling phase...")
 
@@ -288,7 +295,7 @@ class AirQualityCalculator:
 
     def _assess_absolute_quality(self, gas_resistance: float) -> AirQualityLevel:
         """
-        Assess air quality based on absolute gas resistance values.
+        Assess air quality based on absolute gas resistance values with hysteresis.
 
         Uses configurable thresholds based on BME680 research and empirical data.
         Higher resistance = cleaner air (fewer VOCs and pollutants)
@@ -299,18 +306,38 @@ class AirQualityCalculator:
         Returns:
             AirQualityLevel based on absolute value
         """
-        if gas_resistance > self.excellent_threshold_abs:
-            return AirQualityLevel.GOOD
-        elif gas_resistance > self.good_threshold_abs:
-            return AirQualityLevel.GOOD
-        elif gas_resistance > self.moderate_threshold_abs:
-            return AirQualityLevel.MODERATE
+        prev = self._current_absolute_level
+        poor_exit_abs = self.moderate_threshold_abs * (1.0 + self.hysteresis_margin)
+        good_exit_abs = self.good_threshold_abs * (1.0 - self.hysteresis_margin)
+
+        if prev == AirQualityLevel.POOR:
+            if gas_resistance > self.good_threshold_abs:
+                level = AirQualityLevel.GOOD
+            elif gas_resistance > poor_exit_abs:
+                level = AirQualityLevel.MODERATE
+            else:
+                level = AirQualityLevel.POOR
+        elif prev == AirQualityLevel.GOOD:
+            if gas_resistance <= self.moderate_threshold_abs:
+                level = AirQualityLevel.POOR
+            elif gas_resistance <= good_exit_abs:
+                level = AirQualityLevel.MODERATE
+            else:
+                level = AirQualityLevel.GOOD
         else:
-            return AirQualityLevel.POOR
+            if gas_resistance > self.excellent_threshold_abs or gas_resistance > self.good_threshold_abs:
+                level = AirQualityLevel.GOOD
+            elif gas_resistance > self.moderate_threshold_abs:
+                level = AirQualityLevel.MODERATE
+            else:
+                level = AirQualityLevel.POOR
+
+        self._current_absolute_level = level
+        return level
 
     def _assess_relative_quality(self, ratio: float) -> AirQualityLevel:
         """
-        Assess air quality based on ratio to baseline.
+        Assess air quality based on ratio to baseline with hysteresis deadband.
 
         Args:
             ratio: current_gas / baseline_gas
@@ -318,12 +345,34 @@ class AirQualityCalculator:
         Returns:
             AirQualityLevel based on relative change
         """
-        if ratio > self.good_threshold:
-            return AirQualityLevel.GOOD
-        elif ratio < self.poor_threshold:
-            return AirQualityLevel.POOR
+        prev = self._current_relative_level
+        poor_exit_ratio = min(self.good_threshold, self.poor_threshold + self.hysteresis_margin)
+        good_exit_ratio = max(self.poor_threshold, self.good_threshold - self.hysteresis_margin)
+
+        if prev == AirQualityLevel.POOR:
+            if ratio > self.good_threshold:
+                level = AirQualityLevel.GOOD
+            elif ratio >= poor_exit_ratio:
+                level = AirQualityLevel.MODERATE
+            else:
+                level = AirQualityLevel.POOR
+        elif prev == AirQualityLevel.GOOD:
+            if ratio < self.poor_threshold:
+                level = AirQualityLevel.POOR
+            elif ratio <= good_exit_ratio:
+                level = AirQualityLevel.MODERATE
+            else:
+                level = AirQualityLevel.GOOD
         else:
-            return AirQualityLevel.MODERATE
+            if ratio > self.good_threshold:
+                level = AirQualityLevel.GOOD
+            elif ratio < self.poor_threshold:
+                level = AirQualityLevel.POOR
+            else:
+                level = AirQualityLevel.MODERATE
+
+        self._current_relative_level = level
+        return level
 
     def _level_to_tuple(self, level: AirQualityLevel) -> Tuple[int, str]:
         """

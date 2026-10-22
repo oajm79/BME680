@@ -141,6 +141,11 @@ class Config:
         return self.get('air_quality.poor_threshold', 0.70)
 
     @property
+    def air_quality_hysteresis(self) -> float:
+        """Get air quality band hysteresis margin (relative deadband, e.g. 0.05 = 5%)."""
+        return self.get('air_quality.hysteresis_margin', 0.05)
+
+    @property
     def excellent_threshold_abs(self) -> int:
         """Get excellent air quality threshold in Ohms (absolute)."""
         return self.get('air_quality.excellent_threshold', 150000)
@@ -278,6 +283,16 @@ class Config:
     def telegram_rate_limit(self) -> int:
         """Get Telegram rate limit in seconds."""
         return self.get('telegram.rate_limit_seconds', 300)
+
+    @property
+    def telegram_confirmation_readings(self) -> int:
+        """Get consecutive readings required to confirm a state transition."""
+        return self.get('telegram.confirmation_readings', 15)
+
+    @property
+    def telegram_debounce_seconds(self) -> float:
+        """Get minimum time in seconds a new state must hold before alerting."""
+        return float(self.get('telegram.debounce_seconds', 120.0))
 
     @property
     def telegram_quiet_hours_start(self) -> int:

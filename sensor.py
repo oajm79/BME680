@@ -165,6 +165,8 @@ def main():
         rate_limit_seconds=config.telegram_rate_limit,
         quiet_hours_start=config.telegram_quiet_hours_start,
         quiet_hours_end=config.telegram_quiet_hours_end,
+        confirmation_readings=config.telegram_confirmation_readings,
+        debounce_seconds=config.telegram_debounce_seconds,
         state_file="data/.alert_state.json",
     )
 
@@ -201,7 +203,8 @@ def main():
         baseline_max_age_hours=config.baseline_max_age,
         excellent_threshold_abs=config.excellent_threshold_abs,
         good_threshold_abs=config.good_threshold_abs,
-        moderate_threshold_abs=config.moderate_threshold_abs
+        moderate_threshold_abs=config.moderate_threshold_abs,
+        hysteresis_margin=config.air_quality_hysteresis,
     )
 
     # Initialize OLED display

@@ -66,6 +66,22 @@ class TestStateTransitionHysteresis:
         # A different state key starts fresh
         assert notifier._check_state_transition("humidity_high", True) is None
 
+    def test_time_based_debounce_blocks_until_elapsed(self):
+        from unittest.mock import patch
+
+        notifier = TelegramNotifier(enabled=True, confirmation_readings=2, debounce_seconds=60.0)
+        with patch("bme680_monitor.telegram_notifier.time.monotonic") as mock_mono:
+            mock_mono.return_value = 1000.0
+            assert notifier._check_state_transition("air_quality_poor", True) is None
+
+            # 2nd reading after only 10s (< 60s debounce) -> still blocked
+            mock_mono.return_value = 1010.0
+            assert notifier._check_state_transition("air_quality_poor", True) is None
+
+            # Reading after 65s (>= 60s debounce and >= 2 readings) -> confirmed
+            mock_mono.return_value = 1065.0
+            assert notifier._check_state_transition("air_quality_poor", True) == "entered"
+
 
 class TestOpenClawIntegration:
     """Test suite for OpenClaw dispatch and fallback."""

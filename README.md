@@ -259,7 +259,7 @@ The system uses a **hybrid algorithm** combining:
    Poor:      < 50 kΩ
    ```
 
-The final quality is the **minimum** of both assessments for safety. See [AIR_QUALITY_ALGORITHM.md](docs/AIR_QUALITY_ALGORITHM.md) for details.
+The final quality is the **minimum** of both assessments for safety, with a configurable **hysteresis deadband** (`air_quality.hysteresis_margin`, default `0.05` / 5%) on both relative and absolute band exits (`Poor → Moderate` requires `ratio ≥ 0.75` and `> 52.5 kΩ`; `Good → Moderate` requires `ratio ≤ 1.30` and `≤ 95 kΩ`) plus multi-reading and time-based transition debounce in `TelegramNotifier` (`telegram.confirmation_readings = 15`, `telegram.debounce_seconds = 120.0`) to prevent threshold-flapping alert spam. See [AIR_QUALITY_ALGORITHM.md](docs/AIR_QUALITY_ALGORITHM.md) for details.
 
 ## 🛠️ Hardware Setup
 
