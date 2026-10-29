@@ -47,11 +47,11 @@ TOOLS = [
     {
         "name": "get_bme680_telemetry_chart",
         "description": (
-            "Genera y envía por WhatsApp un gráfico PNG de alta resolución (tema oscuro) "
-            "con el historial del sensor ambiental BME680 (temperatura, humedad, calidad del aire / VOC y presión) "
-            "y devuelve el resumen estadístico (mínimo, máximo, promedio, lectura actual y nivel de confort). "
-            "Soporta ventanas de 1 a 168 horas (máximo 7 días) o presets como 'last_night' (anoche 22:00–08:00), "
-            "'today', 'last_24h' y 'last_7d'."
+            "Generate and send via WhatsApp a high-resolution dark-theme PNG telemetry chart / graph / plot "
+            "for the indoor BME680 environmental sensor (temperature, humidity, air quality / VOC / IAQ, and atmospheric pressure) "
+            "and return the statistical summary (min, max, average, current reading, and comfort level). "
+            "Genera y envía por WhatsApp un gráfico PNG de temperatura, humedad, calidad del aire y presión del sensor ambiental BME680 "
+            "en el hogar (1 a 168 horas, máximo 7 días, o presets 'last_night' para anoche 22:00–08:00, 'today', 'last_24h', 'last_7d')."
         ),
         "inputSchema": {
             "type": "object",
@@ -60,16 +60,16 @@ TOOLS = [
                     "type": "string",
                     "enum": list(VALID_METRICS),
                     "description": (
-                        "Métrica a graficar: 'all' (panel triple sincronizado de temperatura, humedad y calidad del aire), "
-                        "'temperature', 'humidity', 'air_quality' o 'pressure'. Default: 'all'."
+                        "Metric to plot / Métrica a graficar: 'all' (triple synchronized panel of temperature, humidity, and air quality), "
+                        "'temperature' (temperatura), 'humidity' (humedad), 'air_quality' (calidad del aire / VOC), or 'pressure' (presión). Default: 'all'."
                     ),
                     "default": "all",
                 },
                 "hours": {
                     "type": "number",
                     "description": (
-                        "Ventana histórica en horas (default: 12, máximo estricto: 168 horas / 7 días). "
-                        "Cualquier valor > 168 se recorta automáticamente a 168 horas."
+                        "Historical time window in hours / Ventana histórica en horas (default: 12, strict max: 168 hours / 7 days). "
+                        "Any value > 168 is automatically clamped to 168 hours."
                     ),
                     "default": 12,
                 },
@@ -77,18 +77,18 @@ TOOLS = [
                     "type": "string",
                     "enum": list(VALID_PRESETS),
                     "description": (
-                        "Preset temporal opcional: 'last_night' (ayer 22:00 a hoy 08:00), "
-                        "'today' (hoy desde las 00:00), 'last_24h' (últimas 24h) o 'last_7d' (últimos 7 días)."
+                        "Optional time preset / Preset temporal: 'last_night' (anoche / yesterday 22:00 to today 08:00), "
+                        "'today' (hoy since 00:00), 'last_24h' (last 24h), or 'last_7d' (last 7 days)."
                     ),
                 },
                 "send_to_whatsapp": {
                     "type": "boolean",
-                    "description": "Si es True (default), envía la imagen PNG directamente al WhatsApp del usuario vía OpenClaw.",
+                    "description": "If True (default), sends the PNG chart image directly to the user's WhatsApp via OpenClaw.",
                     "default": True,
                 },
                 "recipient": {
                     "type": "string",
-                    "description": "Número de WhatsApp destino en formato E.164 (opcional; usa el destinatario configurado por defecto).",
+                    "description": "Target WhatsApp E.164 phone number (optional; defaults to configured recipient).",
                 },
             },
             "additionalProperties": False,
