@@ -16,6 +16,7 @@ Professional air quality monitoring system for Raspberry Pi using the BME680 env
 - **Comfort Interpretations** - Human-readable assessments with actionable recommendations
 - **OLED Display Support** - Alternating views with sensor data and comfort emoji, including compatibility shim for Pillow 10+ / `luma.oled`
 - **SQLite Data Storage** - Efficient database storage with statistics and auto-cleanup (`data/sensor_data.db`)
+- **On-Demand WhatsApp Telemetry Charts (`bme680-tools-mcp.py`)** - High-DPI dark-theme PNG charts (`chart_generator.py`) with server-side SQLite downsampling and a 7-day (`168h`) guardrail cap exposed via MCP to OpenClaw
 - **Telegram Notifications** - Alerts for air quality, temperature, humidity + daily summaries
 - **Optimized Logging** - Reduced log frequency (15 min) while maintaining full data
 - **Configuration Management** - YAML-based configuration without code changes
@@ -36,8 +37,10 @@ BME680/
 │       ├── comfort_index.py    # Comfort interpretations
 │       ├── display.py          # OLED display with alternating views
 │       ├── database.py         # SQLite data storage
+│       ├── chart_generator.py  # SQLite downsampling & dark-theme PNG chart renderer
 │       ├── telegram_notifier.py # Telegram notifications
 │       └── data_logger.py      # CSV logging (legacy)
+├── bme680-tools-mcp.py    # Stdio JSON-RPC MCP server for WhatsApp telemetry charts
 ├── data/                  # SQLite database (auto-created)
 ├── tests/                 # Unit tests
 ├── docs/                  # Documentation
@@ -331,6 +334,27 @@ For accurate air quality readings:
 The baseline is automatically saved and reloaded on restart.
 
 ## 📈 Data Visualization
+
+### On-Demand WhatsApp Telemetry Charts & MCP Server (`bme680-tools-mcp.py`)
+
+`src/bme680_monitor/chart_generator.py` and `bme680-tools-mcp.py` allow querying historical sensor trends and dispatching high-resolution dark-theme PNG charts directly to WhatsApp via OpenClaw (`get_bme680_telemetry_chart`):
+
+- **Timeframe & 7-Day Guardrail:**
+  - Default window: `12` hours.
+  - Hard maximum cap: `168` hours (**7 days**). Any request `> 168` hours is automatically clamped to `168` hours (`clamped: True`).
+  - Semantic presets: `last_night` (yesterday `22:00` to today `08:00` local time), `today` (`00:00` to now), `last_24h` (`24h`), and `last_7d` (`168h`).
+- **Server-Side SQLite Downsampling (`fetch_bme680_history`):**
+  - Queries local `data/sensor_data.db` if present, or executes a single aggregated SQLite query over SSH on the Raspberry Pi Zero 2W (`oajm@10.0.0.219`) to protect its 512 MB RAM and return `<250` rows:
+    - `<= 24h`: 5-minute buckets (`300` seconds)
+    - `24h < hours <= 72h`: 15-minute buckets (`900` seconds)
+    - `> 72h`: 60-minute buckets (`3600` seconds)
+- **High-DPI Dark-Theme PNG Renderer (`generate_bme680_chart`):**
+  - Uses Pillow (`PIL`) with `DejaVuSans` / `DejaVuSans-Bold` at 2x supersampling downscaled with `Image.Resampling.LANCZOS`.
+  - Supports `metric` in `("all", "temperature", "humidity", "air_quality", "pressure")` with shaded `MIN`–`MAX` bands, comfort reference thresholds (`18–24°C`, `30–60%RH`, `50/100 kΩ`), and callout badges for `MIN`, `MAX`, and `LAST`.
+- **MCP Throttling & Idempotency:**
+  - Protected by `RateLimiter(min_interval_seconds=2.0)` and `IdempotencyGuard(ttl_seconds=120.0)` from `shared_services.mcp_throttle`.
+
+### Offline / Notebook Analysis
 
 Use the CSV output with:
 

@@ -22,6 +22,13 @@ from .database import DatabaseManager
 from .telegram_notifier import TelegramNotifier, AlertType
 from .comfort_index import ComfortIndexCalculator
 from .weather_service import WeatherService
+from .chart_generator import (
+    MAX_HOURS,
+    fetch_bme680_history,
+    generate_bme680_chart,
+    resolve_time_window,
+    select_bucket_seconds,
+)
 
 __all__ = [
     "Config",
@@ -34,4 +41,9 @@ __all__ = [
     "AlertType",
     "ComfortIndexCalculator",
     "WeatherService",
+    "MAX_HOURS",
+    "fetch_bme680_history",
+    "generate_bme680_chart",
+    "resolve_time_window",
+    "select_bucket_seconds",
 ]
