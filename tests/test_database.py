@@ -58,6 +58,27 @@ class TestDatabaseManagerRoundTrip:
         assert deleted == 0
         assert len(db.get_recent_readings(limit=10)) == 1
 
+    def test_cleanup_old_data_deletes_expired_rows_without_blocking_vacuum(self, db):
+        """Verify midnight cleanup removes expired rows without running a blocking VACUUM by default."""
+        db.log_reading(
+            temperature=19.0,
+            humidity=45.0,
+            pressure=1012.0,
+            timestamp="2020-01-01 00:00:00",
+        )
+        db.log_reading(temperature=22.5, humidity=40.0, pressure=1013.0)
+
+        statements = []
+        db.connection.set_trace_callback(statements.append)
+        try:
+            deleted = db.cleanup_old_data(days=30)
+        finally:
+            db.connection.set_trace_callback(None)
+
+        assert deleted == 1
+        assert len(db.get_recent_readings(limit=10)) == 1
+        assert not any("VACUUM" in stmt.upper() for stmt in statements)
+
     def test_utc_timestamp_and_recent_hour_filtering(self, db):
         """Verify fix for BME680#7: readings are stored in UTC and 1-hour filter works accurately."""
         row_id = db.log_reading(temperature=22.0, humidity=42.0, pressure=1013.25)

@@ -237,12 +237,18 @@ class DatabaseManager:
             logger.error(f"Error getting statistics: {e}")
             return {}
 
-    def cleanup_old_data(self, days: int = 30) -> int:
+    def cleanup_old_data(self, days: int = 30, vacuum: bool = False) -> int:
         """
-        Delete readings older than N days.
+        Delete readings older than N days without blocking the sensor heater loop.
+
+        SQLite automatically reuses freed B-tree pages from DELETE in steady-state
+        rolling retention, whereas a full-file VACUUM on ~2M rows stalls the SD card
+        for ~4 minutes and lets the BME680 320°C micro-heater cool down (causing
+        artificial midnight spikes in temperature, humidity, and gas resistance).
 
         Args:
             days: Number of days to keep
+            vacuum: If True, run a full SQLite VACUUM after deletion (default False)
 
         Returns:
             Number of deleted rows
@@ -262,8 +268,8 @@ class DatabaseManager:
 
             if deleted > 0:
                 logger.info(f"Cleaned up {deleted} old readings")
-                # Vacuum to reclaim space
-                cursor.execute("VACUUM")
+                if vacuum:
+                    cursor.execute("VACUUM")
 
             return deleted
 
