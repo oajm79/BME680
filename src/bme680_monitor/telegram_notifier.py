@@ -324,12 +324,20 @@ class TelegramNotifier(_BaseTelegramNotifier):
         high_threshold: Optional[float],
         low_threshold: Optional[float],
         weather_data: Optional[Dict[str, Any]] = None,
+        hysteresis: float = 0.5,
+        **kwargs,
     ) -> bool:
+        if "hysteresis_band" in kwargs:
+            hysteresis = kwargs["hysteresis_band"]
+        hysteresis = max(0.0, float(hysteresis))
         sent = False
         outdoor_context = self._format_outdoor_context(weather_data)
 
         if high_threshold is not None:
-            is_high = temperature > high_threshold
+            if self._alert_states.get("temperature_high", False):
+                is_high = temperature > (high_threshold - hysteresis)
+            else:
+                is_high = temperature > high_threshold
             transition = self._check_state_transition("temperature_high", is_high)
             if transition == "entered":
                 message = f"""
@@ -355,7 +363,10 @@ Temperature has <b>returned to normal</b>
                 sent = self.send_message(message, AlertType.TEMPERATURE_HIGH)
 
         if low_threshold is not None:
-            is_low = temperature < low_threshold
+            if self._alert_states.get("temperature_low", False):
+                is_low = temperature < (low_threshold + hysteresis)
+            else:
+                is_low = temperature < low_threshold
             transition = self._check_state_transition("temperature_low", is_low)
             if transition == "entered":
                 message = f"""
@@ -388,12 +399,20 @@ Temperature has <b>returned to normal</b>
         high_threshold: Optional[float],
         low_threshold: Optional[float],
         weather_data: Optional[Dict[str, Any]] = None,
+        hysteresis: float = 2.0,
+        **kwargs,
     ) -> bool:
+        if "hysteresis_band" in kwargs:
+            hysteresis = kwargs["hysteresis_band"]
+        hysteresis = max(0.0, float(hysteresis))
         sent = False
         outdoor_context = self._format_outdoor_context(weather_data)
 
         if high_threshold is not None:
-            is_high = humidity > high_threshold
+            if self._alert_states.get("humidity_high", False):
+                is_high = humidity > (high_threshold - hysteresis)
+            else:
+                is_high = humidity > high_threshold
             transition = self._check_state_transition("humidity_high", is_high)
             if transition == "entered":
                 message = f"""
@@ -419,7 +438,10 @@ Humidity has <b>returned to normal</b>
                 sent = self.send_message(message, AlertType.HUMIDITY_HIGH)
 
         if low_threshold is not None:
-            is_low = humidity < low_threshold
+            if self._alert_states.get("humidity_low", False):
+                is_low = humidity < (low_threshold + hysteresis)
+            else:
+                is_low = humidity < low_threshold
             transition = self._check_state_transition("humidity_low", is_low)
             if transition == "entered":
                 message = f"""

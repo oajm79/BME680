@@ -59,8 +59,10 @@ telegram:
     air_quality_poor: true
     temperature_high: 30.0
     temperature_low: 15.0
+    temperature_hysteresis: 0.5
     humidity_high: 70.0
     humidity_low: 30.0
+    humidity_hysteresis: 2.0
     daily_summary: true
     daily_summary_hour: 20
     system_notifications: true

@@ -120,7 +120,8 @@ def check_alerts(
         temperature=temperature,
         high_threshold=config.telegram_alert_temperature_high,
         low_threshold=config.telegram_alert_temperature_low,
-        weather_data=weather_data
+        weather_data=weather_data,
+        hysteresis=config.telegram_alert_temperature_hysteresis,
     )
 
     # Humidity alerts (transition-based)
@@ -128,7 +129,8 @@ def check_alerts(
         humidity=humidity,
         high_threshold=config.telegram_alert_humidity_high,
         low_threshold=config.telegram_alert_humidity_low,
-        weather_data=weather_data
+        weather_data=weather_data,
+        hysteresis=config.telegram_alert_humidity_hysteresis,
     )
 
 

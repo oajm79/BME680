@@ -320,6 +320,11 @@ class Config:
         return self.get('telegram.alerts.temperature_low', None)
 
     @property
+    def telegram_alert_temperature_hysteresis(self) -> float:
+        """Get temperature alert hysteresis band in degrees Celsius."""
+        return float(self.get('telegram.alerts.temperature_hysteresis', 0.5))
+
+    @property
     def telegram_alert_humidity_high(self) -> float:
         """Get high humidity alert threshold."""
         return self.get('telegram.alerts.humidity_high', None)
@@ -328,6 +333,11 @@ class Config:
     def telegram_alert_humidity_low(self) -> float:
         """Get low humidity alert threshold."""
         return self.get('telegram.alerts.humidity_low', None)
+
+    @property
+    def telegram_alert_humidity_hysteresis(self) -> float:
+        """Get humidity alert hysteresis band in percentage points."""
+        return float(self.get('telegram.alerts.humidity_hysteresis', 2.0))
 
     @property
     def telegram_daily_summary(self) -> bool:

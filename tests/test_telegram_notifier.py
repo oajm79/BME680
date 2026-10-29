@@ -83,6 +83,120 @@ class TestStateTransitionHysteresis:
             assert notifier._check_state_transition("air_quality_poor", True) == "entered"
 
 
+class TestHumidityAndTemperatureHysteresis:
+    """Test suite for humidity and temperature hysteresis to prevent threshold flapping."""
+
+    def test_humidity_low_hysteresis_prevents_flapping(self):
+        from unittest.mock import MagicMock
+
+        notifier = TelegramNotifier(
+            bot_token="test_token",
+            chat_id="12345",
+            enabled=True,
+            confirmation_readings=2,
+            debounce_seconds=0.0,
+        )
+        notifier.send_message = MagicMock(return_value=True)
+
+        # 1. Enter low state (threshold = 30.0%, hysteresis = 2.0%)
+        # Reading 1: 29.5% (< 30.0%) -> pending
+        assert notifier.check_humidity_transition(29.5, high_threshold=70.0, low_threshold=30.0, hysteresis=2.0) is False
+        assert notifier._alert_states["humidity_low"] is False
+
+        # Reading 2: 29.5% -> confirmed entry
+        assert notifier.check_humidity_transition(29.5, high_threshold=70.0, low_threshold=30.0, hysteresis=2.0) is True
+        assert notifier._alert_states["humidity_low"] is True
+        assert notifier.send_message.call_count == 1
+        assert "dropped below" in notifier.send_message.call_args[0][0]
+
+        # 2. Hover around threshold: 29.8, 30.0, 30.5, 31.0, 31.8 (< 30 + 2 = 32.0%)
+        # None of these should trigger an exit or alert
+        for h in [29.8, 30.0, 30.2, 30.9, 31.5, 31.9]:
+            assert notifier.check_humidity_transition(h, high_threshold=70.0, low_threshold=30.0, hysteresis=2.0) is False
+            assert notifier._alert_states["humidity_low"] is True
+        assert notifier.send_message.call_count == 1  # Still only the initial alert
+
+        # 3. Sustained crossing above band (>= 32.0%)
+        # Reading 1: 32.5% -> pending exit
+        assert notifier.check_humidity_transition(32.5, high_threshold=70.0, low_threshold=30.0, hysteresis=2.0) is False
+        assert notifier._alert_states["humidity_low"] is True
+
+        # Reading 2: 32.5% -> confirmed exit
+        assert notifier.check_humidity_transition(32.5, high_threshold=70.0, low_threshold=30.0, hysteresis=2.0) is True
+        assert notifier._alert_states["humidity_low"] is False
+        assert notifier.send_message.call_count == 2
+        assert "returned to normal" in notifier.send_message.call_args[0][0]
+
+        # 4. Reading at 30.5% (above 30% low threshold) does not re-enter
+        assert notifier.check_humidity_transition(30.5, high_threshold=70.0, low_threshold=30.0, hysteresis=2.0) is False
+        assert notifier._alert_states["humidity_low"] is False
+        assert notifier.send_message.call_count == 2
+
+    def test_humidity_high_hysteresis_prevents_flapping(self):
+        from unittest.mock import MagicMock
+
+        notifier = TelegramNotifier(
+            bot_token="test_token",
+            chat_id="12345",
+            enabled=True,
+            confirmation_readings=2,
+            debounce_seconds=0.0,
+        )
+        notifier.send_message = MagicMock(return_value=True)
+
+        # 1. Enter high state (threshold = 70.0%, hysteresis = 2.0%)
+        assert notifier.check_humidity_transition(70.5, high_threshold=70.0, low_threshold=30.0, hysteresis=2.0) is False
+        assert notifier.check_humidity_transition(70.5, high_threshold=70.0, low_threshold=30.0, hysteresis=2.0) is True
+        assert notifier._alert_states["humidity_high"] is True
+        assert notifier.send_message.call_count == 1
+        assert "exceeded" in notifier.send_message.call_args[0][0]
+
+        # 2. Hover around threshold: 69.8, 70.0, 69.2, 68.5 (> 70 - 2 = 68.0%)
+        for h in [69.8, 70.0, 69.2, 68.5]:
+            assert notifier.check_humidity_transition(h, high_threshold=70.0, low_threshold=30.0, hysteresis=2.0) is False
+            assert notifier._alert_states["humidity_high"] is True
+        assert notifier.send_message.call_count == 1
+
+        # 3. Sustained crossing below band (<= 68.0%)
+        assert notifier.check_humidity_transition(67.5, high_threshold=70.0, low_threshold=30.0, hysteresis=2.0) is False
+        assert notifier.check_humidity_transition(67.5, high_threshold=70.0, low_threshold=30.0, hysteresis=2.0) is True
+        assert notifier._alert_states["humidity_high"] is False
+        assert notifier.send_message.call_count == 2
+        assert "returned to normal" in notifier.send_message.call_args[0][0]
+
+    def test_temperature_hysteresis_prevents_flapping(self):
+        from unittest.mock import MagicMock
+
+        notifier = TelegramNotifier(
+            bot_token="test_token",
+            chat_id="12345",
+            enabled=True,
+            confirmation_readings=2,
+            debounce_seconds=0.0,
+        )
+        notifier.send_message = MagicMock(return_value=True)
+
+        # 1. Enter high temperature (threshold = 30.0°C, hysteresis = 0.5°C)
+        assert notifier.check_temperature_transition(30.2, high_threshold=30.0, low_threshold=15.0, hysteresis=0.5) is False
+        assert notifier.check_temperature_transition(30.2, high_threshold=30.0, low_threshold=15.0, hysteresis=0.5) is True
+        assert notifier._alert_states["temperature_high"] is True
+        assert notifier.send_message.call_count == 1
+        assert "exceeded" in notifier.send_message.call_args[0][0]
+
+        # 2. Hover around threshold: 29.8, 29.6 (> 30.0 - 0.5 = 29.5°C)
+        for t in [29.9, 30.0, 29.7, 29.6]:
+            assert notifier.check_temperature_transition(t, high_threshold=30.0, low_threshold=15.0, hysteresis=0.5) is False
+            assert notifier._alert_states["temperature_high"] is True
+        assert notifier.send_message.call_count == 1
+
+        # 3. Sustained crossing below band (<= 29.5°C)
+        assert notifier.check_temperature_transition(29.4, high_threshold=30.0, low_threshold=15.0, hysteresis=0.5) is False
+        assert notifier.check_temperature_transition(29.4, high_threshold=30.0, low_threshold=15.0, hysteresis=0.5) is True
+        assert notifier._alert_states["temperature_high"] is False
+        assert notifier.send_message.call_count == 2
+        assert "returned to normal" in notifier.send_message.call_args[0][0]
+
+
 class TestOpenClawIntegration:
     """Test suite for OpenClaw dispatch and fallback."""
 
