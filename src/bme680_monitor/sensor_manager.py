@@ -81,6 +81,9 @@ class SensorManager:
         self.gas_heater_duration = gas_heater_duration
 
         self.sensor: Optional[bme680.BME680] = None
+        self._consecutive_read_errors: int = 0
+        self._reinit_interval: int = 30
+        self._log_throttle_interval: int = 300
         self._initialize_sensor()
 
     def _initialize_sensor(self) -> None:
@@ -115,7 +118,8 @@ class SensorManager:
 
     def read(self) -> Optional[SensorData]:
         """
-        Read sensor data.
+        Read sensor data. Automatically attempts I2C re-initialization after
+        repeated read errors and throttles repetitive error logs to protect SD storage.
 
         Returns:
             SensorData object if successful, None otherwise
@@ -126,6 +130,12 @@ class SensorManager:
 
         try:
             if self.sensor.get_sensor_data():
+                if self._consecutive_read_errors > 0:
+                    logger.info(
+                        f"BME680 I2C communication recovered after {self._consecutive_read_errors} failed attempt(s)"
+                    )
+                    self._consecutive_read_errors = 0
+
                 temperature = self.sensor.data.temperature
                 humidity = self.sensor.data.humidity
                 pressure = self.sensor.data.pressure
@@ -145,7 +155,19 @@ class SensorManager:
                 )
 
         except Exception as e:
-            logger.error(f"Error reading sensor data: {e}")
+            self._consecutive_read_errors += 1
+            if (
+                self._consecutive_read_errors == 1
+                or self._consecutive_read_errors % self._log_throttle_interval == 0
+            ):
+                logger.error(
+                    f"Error reading sensor data (consecutive={self._consecutive_read_errors}): {e}"
+                )
+            if self._consecutive_read_errors % self._reinit_interval == 0:
+                try:
+                    self._initialize_sensor()
+                except Exception:
+                    pass
 
         return None
 

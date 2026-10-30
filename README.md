@@ -18,7 +18,7 @@ Professional air quality monitoring system for Raspberry Pi using the BME680 env
 - **SQLite Data Storage** - Efficient database storage with statistics and non-blocking rolling 30-day auto-cleanup (`data/sensor_data.db`, reusing freed B-tree pages without blocking the BME680 320°C heater loop with midnight `VACUUM`)
 - **On-Demand WhatsApp Telemetry Charts (`bme680-tools-mcp.py`)** - High-DPI dark-theme PNG charts (`chart_generator.py`) with server-side SQLite downsampling and a 7-day (`168h`) guardrail cap exposed via MCP to OpenClaw
 - **Telegram Notifications** - Alerts for air quality, temperature, humidity + daily summaries
-- **Optimized Logging** - Reduced log frequency (15 min) while maintaining full data
+- **Optimized Logging & I2C Self-Healing** - Reduced log frequency (15 min) with I2C error log throttling (every 300s) and automatic `BME680` bus re-initialization every 30s on `Remote I/O error` to protect SD storage and recover from transient bus resets
 - **Configuration Management** - YAML-based configuration without code changes
 - **Professional Logging** - Structured logs with automatic rotation
 - **Service Management** - Systemd integration for auto-start (`bme680-sensor.service`)

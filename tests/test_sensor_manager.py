@@ -48,3 +48,22 @@ class TestSensorManagerInitErrors:
             "OSError during sensor init was not logged - it fell through the "
             "RuntimeError-only except clause"
         )
+
+    def test_read_throttles_errors_and_attempts_reinit(self, caplog):
+        from unittest.mock import MagicMock
+
+        mock_dev = MagicMock()
+        mock_dev.get_sensor_data.side_effect = OSError("[Errno 121] Remote I/O error")
+        with patch("bme680_monitor.sensor_manager.bme680.BME680", return_value=mock_dev) as mock_cls:
+            mgr = SensorManager()
+            assert mock_cls.call_count == 1
+            caplog.clear()
+            with caplog.at_level("ERROR"):
+                for _ in range(30):
+                    assert mgr.read() is None
+            # Only the 1st error should be logged within 30 attempts (throttled to every 300)
+            error_records = [r for r in caplog.records if "Error reading sensor data" in r.message]
+            assert len(error_records) == 1
+            # Re-init should have been attempted on the 30th consecutive error
+            assert mock_cls.call_count == 2
+

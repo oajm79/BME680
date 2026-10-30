@@ -284,8 +284,9 @@ def main():
             sensor_data = sensor_manager.read()
 
             if sensor_data is None:
-                logger.warning("Failed to read sensor data")
                 sensor_failure_count += 1
+                if sensor_failure_count == 1 or sensor_failure_count % 300 == 0:
+                    logger.warning(f"Failed to read sensor data (consecutive={sensor_failure_count})")
                 failure_minutes = (sensor_failure_count * config.sampling_interval) / 60
                 if (telegram.is_enabled() and
                         not sensor_failure_alert_sent and
