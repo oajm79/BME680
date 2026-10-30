@@ -63,7 +63,8 @@ class SensorManager:
         self,
         i2c_address: int = 0x77,
         gas_heater_temperature: int = 320,
-        gas_heater_duration: int = 150
+        gas_heater_duration: int = 150,
+        allow_deferred_init: bool = False
     ):
         """
         Initialize sensor manager.
@@ -72,9 +73,11 @@ class SensorManager:
             i2c_address: I2C address of BME680 sensor (0x77 or 0x76)
             gas_heater_temperature: Gas heater temperature in Celsius
             gas_heater_duration: Gas heater duration in milliseconds
+            allow_deferred_init: If True, keep running with sensor=None when
+                initial I2C detection fails and retry automatically in read()
 
         Raises:
-            RuntimeError: If sensor initialization fails
+            RuntimeError, OSError: If sensor initialization fails and allow_deferred_init is False
         """
         self.i2c_address = i2c_address
         self.gas_heater_temperature = gas_heater_temperature
@@ -84,9 +87,17 @@ class SensorManager:
         self._consecutive_read_errors: int = 0
         self._reinit_interval: int = 30
         self._log_throttle_interval: int = 300
-        self._initialize_sensor()
+        try:
+            self._initialize_sensor()
+        except (RuntimeError, OSError):
+            if not allow_deferred_init:
+                raise
+            logger.warning(
+                f"Deferred initialization enabled: BME680 at 0x{self.i2c_address:02X} "
+                f"not reachable yet; will retry every {self._reinit_interval} reads."
+            )
 
-    def _initialize_sensor(self) -> None:
+    def _initialize_sensor(self, quiet: bool = False) -> None:
         """Initialize BME680 sensor and configure settings."""
         try:
             self.sensor = bme680.BME680(self.i2c_address)
@@ -95,9 +106,10 @@ class SensorManager:
         except (RuntimeError, OSError) as e:
             # OSError (e.g. "Remote I/O error") is what a missing/disabled I2C
             # bus actually raises on this hardware; RuntimeError alone missed it.
-            logger.error(f"Error initializing sensor: {e}")
-            logger.error("Ensure SDA and SCL connections are correct")
-            logger.error("and that I2C is enabled (sudo raspi-config -> Interface Options -> I2C)")
+            if not quiet:
+                logger.error(f"Error initializing sensor: {e}")
+                logger.error("Ensure SDA and SCL connections are correct")
+                logger.error("and that I2C is enabled (sudo raspi-config -> Interface Options -> I2C)")
             raise
 
         # Configure gas heater
@@ -125,8 +137,21 @@ class SensorManager:
             SensorData object if successful, None otherwise
         """
         if not self.sensor:
-            logger.error("Sensor not initialized")
-            return None
+            self._consecutive_read_errors += 1
+            if (
+                self._consecutive_read_errors == 1
+                or self._consecutive_read_errors % self._log_throttle_interval == 0
+            ):
+                logger.error(
+                    f"Sensor not initialized (consecutive={self._consecutive_read_errors})"
+                )
+            if self._consecutive_read_errors % self._reinit_interval == 0:
+                try:
+                    self._initialize_sensor(quiet=True)
+                except Exception:
+                    pass
+            if not self.sensor:
+                return None
 
         try:
             if self.sensor.get_sensor_data():
@@ -165,7 +190,7 @@ class SensorManager:
                 )
             if self._consecutive_read_errors % self._reinit_interval == 0:
                 try:
-                    self._initialize_sensor()
+                    self._initialize_sensor(quiet=True)
                 except Exception:
                     pass
 

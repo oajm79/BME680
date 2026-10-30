@@ -177,20 +177,14 @@ def main():
     else:
         logger.info("Telegram notifications: Disabled")
 
-    # Initialize sensor
-    try:
-        sensor_manager = SensorManager(
-            i2c_address=config.sensor_i2c_address,
-            gas_heater_temperature=config.gas_heater_temperature,
-            gas_heater_duration=config.gas_heater_duration
-        )
-    except (RuntimeError, OSError):
-        # OSError covers missing/disabled I2C bus (e.g. "Remote I/O error"),
-        # which SensorManager can raise but isn't a RuntimeError.
-        logger.error("Failed to initialize sensor. Exiting.")
-        if telegram.is_enabled() and config.telegram_system_notifications:
-            telegram.send_shutdown_message("Sensor initialization failed")
-        sys.exit(1)
+    # Initialize sensor (allow deferred init so transient I2C disconnects do not
+    # trigger a systemd crash-restart loop and repeated Telegram shutdown alerts)
+    sensor_manager = SensorManager(
+        i2c_address=config.sensor_i2c_address,
+        gas_heater_temperature=config.gas_heater_temperature,
+        gas_heater_duration=config.gas_heater_duration,
+        allow_deferred_init=True,
+    )
 
     # Initialize air quality calculator
     air_quality = AirQualityCalculator(
@@ -260,8 +254,8 @@ def main():
 
     logger.info(f"Reading data every {config.sampling_interval} second(s). Press Ctrl+C to exit.")
 
-    # Send startup notification
-    if telegram.is_enabled() and config.telegram_system_notifications:
+    # Send startup notification only when sensor hardware is currently reachable
+    if telegram.is_enabled() and config.telegram_system_notifications and sensor_manager.is_available():
         telegram.send_startup_message("2.2.0")
 
     # Track time for logging intervals and daily summary

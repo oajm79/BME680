@@ -67,3 +67,12 @@ class TestSensorManagerInitErrors:
             # Re-init should have been attempted on the 30th consecutive error
             assert mock_cls.call_count == 2
 
+    def test_deferred_init_keeps_daemon_alive_and_retries(self):
+        with patch("bme680_monitor.sensor_manager.bme680.BME680", side_effect=RuntimeError("Unable to identify BME680 at 0x77")) as mock_cls:
+            mgr = SensorManager(allow_deferred_init=True)
+            assert not mgr.is_available()
+            for _ in range(30):
+                assert mgr.read() is None
+            assert mock_cls.call_count == 2
+
+
