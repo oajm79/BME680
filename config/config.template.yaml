@@ -5,7 +5,10 @@ sensor:
   i2c_address: 0x77
   gas_heater_temperature: 320  # Celsius
   gas_heater_duration: 150     # milliseconds
-  sampling_interval: 1         # seconds between readings
+  # Sampling interval (seconds between readings).
+  # TIP: Recommended 3 to 5 seconds to reduce thermal fatigue on the 320°C gas heater micro-hotplate
+  # and significantly extend sensor operating life for 24/7 continuous monitoring.
+  sampling_interval: 3
 
 calibration:
   burn_in_duration: 300
