@@ -1,5 +1,5 @@
-> **Nota de mantenimiento:** `GEMINI.md` es un enlace simbólico a este archivo (`CLAUDE.md`).
-> **Fuente Única de Documentación:** Toda la documentación de arquitectura, módulos, calibración e invariantes de este proyecto está centralizada en [`README.md`](./README.md). No dupliques documentación aquí; actualiza siempre `README.md`.
+> **Maintenance note:** `GEMINI.md` is a symlink to this file (`CLAUDE.md`).
+> **Single Source of Documentation:** All architecture, module, calibration, and invariant documentation for this project lives in [`README.md`](./README.md). Never duplicate documentation here; always update `README.md`.
 
 @[README.md](./README.md)
 @README.md
