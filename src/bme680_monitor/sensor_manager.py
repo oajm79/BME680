@@ -138,11 +138,12 @@ class SensorManager:
         """
         if not self.sensor:
             self._consecutive_read_errors += 1
-            if (
-                self._consecutive_read_errors == 1
-                or self._consecutive_read_errors % self._log_throttle_interval == 0
-            ):
+            if self._consecutive_read_errors == 1:
                 logger.error(
+                    f"Sensor not initialized (consecutive={self._consecutive_read_errors})"
+                )
+            elif self._consecutive_read_errors % self._log_throttle_interval == 0:
+                logger.warning(
                     f"Sensor not initialized (consecutive={self._consecutive_read_errors})"
                 )
             if self._consecutive_read_errors % self._reinit_interval == 0:
@@ -181,11 +182,12 @@ class SensorManager:
 
         except Exception as e:
             self._consecutive_read_errors += 1
-            if (
-                self._consecutive_read_errors == 1
-                or self._consecutive_read_errors % self._log_throttle_interval == 0
-            ):
+            if self._consecutive_read_errors == 1:
                 logger.error(
+                    f"Error reading sensor data (consecutive={self._consecutive_read_errors}): {e}"
+                )
+            elif self._consecutive_read_errors % self._log_throttle_interval == 0:
+                logger.warning(
                     f"Error reading sensor data (consecutive={self._consecutive_read_errors}): {e}"
                 )
             if self._consecutive_read_errors % self._reinit_interval == 0:

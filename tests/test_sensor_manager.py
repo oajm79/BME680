@@ -67,6 +67,24 @@ class TestSensorManagerInitErrors:
             # Re-init should have been attempted on the 30th consecutive error
             assert mock_cls.call_count == 2
 
+    def test_repeated_read_errors_downgrade_to_warning_at_throttle_interval(self, caplog):
+        from unittest.mock import MagicMock
+
+        mock_dev = MagicMock()
+        mock_dev.get_sensor_data.side_effect = OSError("[Errno 121] Remote I/O error")
+        with patch("bme680_monitor.sensor_manager.bme680.BME680", return_value=mock_dev):
+            mgr = SensorManager()
+            caplog.clear()
+            with caplog.at_level("WARNING"):
+                for _ in range(300):
+                    assert mgr.read() is None
+            errors = [r for r in caplog.records if r.levelname == "ERROR" and "Error reading sensor data" in r.message]
+            warnings = [r for r in caplog.records if r.levelname == "WARNING" and "Error reading sensor data" in r.message]
+            assert len(errors) == 1
+            assert "consecutive=1" in errors[0].message
+            assert len(warnings) == 1
+            assert "consecutive=300" in warnings[0].message
+
     def test_deferred_init_keeps_daemon_alive_and_retries(self):
         with patch("bme680_monitor.sensor_manager.bme680.BME680", side_effect=RuntimeError("Unable to identify BME680 at 0x77")) as mock_cls:
             mgr = SensorManager(allow_deferred_init=True)
